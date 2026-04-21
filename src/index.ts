@@ -13,9 +13,9 @@ export {
   isSignal,
   type ReadSignal,
   type WriteSignal,
-} from "./signals";
+} from "./signals.js";
 
-export { linkedSignal, type LinkedSignal, type LinkedSignalOptions } from "./linked-signal";
+export { linkedSignal, type LinkedSignal, type LinkedSignalOptions } from "./linked-signal.js";
 
 export {
   resource,
@@ -23,4 +23,4 @@ export {
   type ResourceOptions,
   type ResourceStatus,
   type ResourceLoaderParams,
-} from "./resource";
+} from "./resource.js";

@@ -2,9 +2,9 @@
  * Lightweight self-tests for the signals library.
  * Run from the demo page; results are returned as an array.
  */
-import { signal, computed, effect, batch, untracked, isSignal } from "./signals";
-import { linkedSignal } from "./linked-signal";
-import { resource } from "./resource";
+import { signal, computed, effect, batch, untracked, isSignal } from "./signals.js";
+import { linkedSignal } from "./linked-signal.js";
+import { resource } from "./resource.js";
 
 export type TestResult = { name: string; passed: boolean; error?: string };
 

@@ -4,7 +4,7 @@
  * the previous { source, value } so consumers can reconcile state across
  * source changes (e.g. preserve a selection when the underlying list mutates).
  */
-import { signal, computed, effect, untracked, type WriteSignal } from "./signals";
+import { signal, computed, effect, untracked, type WriteSignal } from "./signals.js";
 
 export type LinkedSignal<T> = WriteSignal<T>;
 
@@ -33,7 +33,6 @@ export function linkedSignal<S, T>(
 
   const store = signal<T>(initialValue);
 
-  // Re-derive on subsequent source changes (skip the first synchronous run).
   let firstRun = true;
   effect(() => {
     const s = sourceSignal();
@@ -43,11 +42,11 @@ export function linkedSignal<S, T>(
     }
     const next = untracked(() => opts.computation(s, prev));
     prev = { source: s, value: next };
-    if (!equal(next, untracked(store))) store.set(next);
+    if (!equal(next, untracked(store))) {
+      store.set(next);
+    }
   });
 
-  // Wrap mutators so prev.value tracks user writes — the next reconciliation
-  // sees the latest value as `previous.value`.
   const originalSet = store.set;
   const originalUpdate = store.update;
 

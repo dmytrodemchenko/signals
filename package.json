@@ -3,24 +3,27 @@
   "version": "1.0.0",
   "description": "Zero-dependency reactive signals for TypeScript and JavaScript.",
   "license": "MIT",
+  "type": "module",
   "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
   },
   "files": [
     "dist",
+    "demo",
     "README.md",
     "LICENSE"
   ],
   "sideEffects": false,
   "scripts": {
     "build": "rm -rf dist && ./node_modules/.bin/tsc -p tsconfig.json",
-    "check": "tsc --noEmit --pretty false",
+    "check": "./node_modules/.bin/tsc --noEmit --pretty false",
     "prepack": "npm run build"
   },
   "keywords": [
