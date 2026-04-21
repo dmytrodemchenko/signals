@@ -1,5 +1,5 @@
 {
-  "name": "signals",
+  "name": "@demchenko.di/signals",
   "version": "1.0.0",
   "description": "Zero-dependency reactive signals for TypeScript and JavaScript.",
   "license": "MIT",
@@ -20,6 +20,9 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "sideEffects": false,
   "scripts": {
     "build": "rm -rf dist && ./node_modules/.bin/tsc -p tsconfig.json",

@@ -2,13 +2,13 @@
 
 Zero-dependency reactive signals for TypeScript and JavaScript, with an API and mental model similar to Angular Signals: writable signals, computed values, effects, batching, and dependency tracking with lazy recomputation.
 
+Package: https://www.npmjs.com/package/@demchenko.di/signals
+
 ## Install
 
 ```bash
-npm install signals
+npm install @demchenko.di/signals
 ```
-
-If you publish under a different package name, update the install command accordingly.
 
 ## Features
 
@@ -20,7 +20,7 @@ If you publish under a different package name, update the install command accord
 ## Usage
 
 ```ts
-import { signal, computed, effect, batch } from "signals";
+import { signal, computed, effect, batch } from "@demchenko.di/signals";
 
 const count = signal(0);
 const doubled = computed(() => count() * 2);
@@ -40,7 +40,7 @@ stop();
 ### `linkedSignal`
 
 ```ts
-import { signal, linkedSignal } from "signals";
+import { signal, linkedSignal } from "@demchenko.di/signals";
 
 const items = signal(["a", "b", "c"]);
 
@@ -58,7 +58,7 @@ const selection = linkedSignal<string[], string>({
 ### `resource`
 
 ```ts
-import { signal, resource } from "signals";
+import { signal, resource } from "@demchenko.di/signals";
 
 const userId = signal(1);
 
