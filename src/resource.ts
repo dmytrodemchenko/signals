@@ -70,12 +70,16 @@ export function resource<R, T>(options: ResourceOptions<R, T>): Resource<T> {
       }),
     ).then(
       (result) => {
-        if (myId !== requestId) return;
+        if (myId !== requestId) {
+          return;
+        }
         value.set(result);
         status.set("resolved");
       },
       (err) => {
-        if (myId !== requestId || isAbortError(err)) return;
+        if (myId !== requestId || isAbortError(err)) {
+          return;
+        }
         error.set(err);
         status.set("error");
       },

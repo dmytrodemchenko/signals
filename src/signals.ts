@@ -55,15 +55,19 @@ let batchDepth = 0;
 const pendingEffects = new Set<EffectNode>();
 
 function brand<T extends (...args: never[]) => unknown>(target: T): T & SignalBrand {
-  Object.defineProperty(target, SIGNAL_BRAND, { value: true });
+  Object.defineProperty(target, SIGNAL_BRAND, {value: true});
   return target as T & SignalBrand;
 }
 
 function scheduleEffect(e: EffectNode) {
-  if (e.disposed || e.scheduled) return;
+  if (e.disposed || e.scheduled) {
+    return;
+  }
   e.scheduled = true;
   pendingEffects.add(e);
-  if (batchDepth === 0) flushEffects();
+  if (batchDepth === 0) {
+    flushEffects();
+  }
 }
 
 function flushEffects() {
@@ -72,13 +76,17 @@ function flushEffects() {
     pendingEffects.clear();
     for (const e of batch) {
       e.scheduled = false;
-      if (!e.disposed) runEffect(e);
+      if (!e.disposed) {
+        runEffect(e);
+      }
     }
   }
 }
 
 function trackRead(node: Producer) {
-  if (!activeSubscriber) return;
+  if (!activeSubscriber) {
+    return;
+  }
   activeSubscriber.dependencies.set(node, node.version);
   node.subscribers.add(activeSubscriber);
 }
@@ -97,7 +105,9 @@ function notifySubscribers(node: Producer) {
 }
 
 function clearDependencies(sub: ComputedNode<unknown> | EffectNode) {
-  for (const dep of sub.dependencies.keys()) dep.subscribers.delete(sub);
+  for (const dep of sub.dependencies.keys()) {
+    dep.subscribers.delete(sub);
+  }
   sub.dependencies.clear();
 }
 
@@ -115,11 +125,15 @@ export function signal<T>(initial: T): WriteSignal<T> {
   }) as WriteSignal<T>;
 
   read.set = (next) => {
-    if (Object.is(next, node.value)) return;
+    if (Object.is(next, node.value)) {
+      return;
+    }
     node.value = next;
     node.version++;
     notifySubscribers(node as SignalNode<unknown>);
-    if (batchDepth === 0) flushEffects();
+    if (batchDepth === 0) {
+      flushEffects();
+    }
   };
 
   read.update = (updater) => read.set(updater(node.value));
@@ -128,7 +142,9 @@ export function signal<T>(initial: T): WriteSignal<T> {
     mutator(node.value);
     node.version++;
     notifySubscribers(node as SignalNode<unknown>);
-    if (batchDepth === 0) flushEffects();
+    if (batchDepth === 0) {
+      flushEffects();
+    }
   };
 
   return read;
@@ -147,8 +163,12 @@ export function computed<T>(fn: () => T): ReadSignal<T> {
   };
 
   return brand<() => T>(function read() {
-    if (node.computing) throw new Error("Detected cycle in computed signal.");
-    if (node.dirty || !depsAreFresh(node)) recompute(node);
+    if (node.computing) {
+      throw new Error("Detected cycle in computed signal.");
+    }
+    if (node.dirty || !depsAreFresh(node)) {
+      recompute(node);
+    }
     trackRead(node as ComputedNode<unknown>);
     return node.value as T;
   }) as ReadSignal<T>;
@@ -159,7 +179,9 @@ function depsAreFresh(node: ComputedNode<unknown>): boolean {
     if (dep.kind === "computed" && (dep.dirty || !depsAreFresh(dep))) {
       recompute(dep);
     }
-    if (dep.version !== seenVersion) return false;
+    if (dep.version !== seenVersion) {
+      return false;
+    }
   }
   return true;
 }
