@@ -57,7 +57,7 @@ export const NodeState = {
   Dirty: 2,
 } as const;
 
-export type NodeState = typeof NodeState[keyof typeof NodeState];
+export type NodeState = (typeof NodeState)[keyof typeof NodeState];
 
 type Subscriber = ComputedNode<unknown> | EffectNode;
 type Producer = SignalNode<unknown> | ComputedNode<unknown>;
