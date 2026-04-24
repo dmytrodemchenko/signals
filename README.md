@@ -118,6 +118,22 @@ try {
 
 Use `optimistic()` for async writes that should feel immediate in the UI without mutating committed base state too early. It is especially useful for reactions, toggles, reordering, inline edits, and other mutation-heavy flows where rollback matters.
 
+`hasPending()` and `pendingCount()` are regular read signals, so they can be used directly inside `computed()` and `effect()` for UI state:
+
+```ts
+import { computed, optimistic, signal } from "@demchenko.di/signals";
+
+const serverLikes = signal(10);
+const optimisticLikes = optimistic(serverLikes);
+
+const canLike = computed(() => !optimisticLikes.hasPending());
+const pendingLabel = computed(() =>
+  optimisticLikes.hasPending()
+    ? `Saving (${optimisticLikes.pendingCount()})...`
+    : "Like",
+);
+```
+
 ### Read-only view
 
 ```ts
@@ -155,6 +171,8 @@ The package exports:
 - `clear()` removes all optimistic layers.
 - `commit(nextBase?)` removes the layer and optionally writes a final value or updater into the base signal.
 - `rollback()` removes the layer without touching the base signal.
+
+Because `hasPending()` and `pendingCount()` are read signals, they compose naturally with `computed()` for disabled buttons, loading labels, and mutation-aware UI state.
 
 Optimistic layers always rebase on top of the latest base signal value. If the server updates the underlying state while a mutation is pending, the optimistic projection recalculates from the new base value automatically.
 
