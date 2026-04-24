@@ -4,6 +4,8 @@ Zero-dependency reactive signals for TypeScript and JavaScript, with an API and 
 
 Package: https://www.npmjs.com/package/@demchenko.di/signals
 
+Demo: https://dmytrodemchenko.github.io/Signals/demo/
+
 ## Install
 
 ```bash
