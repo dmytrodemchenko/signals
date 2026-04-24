@@ -143,6 +143,86 @@ export function runTests(): TestResult[] {
     );
   }, results);
 
+  test("effect allows signal writes by default", () => {
+    const source = signal(0);
+    const target = signal(0);
+    const dispose = effect(() => {
+      const next = source();
+      if (next > 0) {
+        target.set(next * 10);
+      }
+    });
+    source.set(3);
+    assert(target() === 30, `expected propagated write, got ${target()}`);
+    dispose();
+  }, results);
+
+  test("effect can disallow signal writes", () => {
+    const source = signal(0);
+    const target = signal(0);
+    const dispose = effect(() => {
+      const next = source();
+      if (next > 0) {
+        target.set(next);
+      }
+    }, { allowSignalWrites: false });
+
+    let threw = false;
+    try {
+      source.set(1);
+    } catch (error) {
+      threw = (error as Error).message === "Signal writes are not allowed in this effect.";
+    }
+
+    assert(threw, "expected write to throw when disallowed");
+    assert(target() === 0, `target should remain unchanged, got ${target()}`);
+    dispose();
+  }, results);
+
+  test("effect scheduler defers and coalesces reruns", () => {
+    const source = signal(0);
+    const seen: number[] = [];
+    const queue: Array<() => void> = [];
+    const dispose = effect(() => {
+      seen.push(source());
+    }, {
+      scheduler: (run) => {
+        queue.push(run);
+      },
+    });
+
+    assert(seen.join(",") === "0", `initial run should be synchronous, got ${seen.join(",")}`);
+    source.set(1);
+    source.set(2);
+    assert(queue.length === 1, `expected one scheduled rerun, got ${queue.length}`);
+    assert(seen.join(",") === "0", `rerun should be deferred, got ${seen.join(",")}`);
+
+    const run = queue.shift();
+    assert(typeof run === "function", "expected scheduled callback");
+    run?.();
+
+    assert(seen.join(",") === "0,2", `expected coalesced rerun, got ${seen.join(",")}`);
+    dispose();
+  }, results);
+
+  test("effect accepts manualCleanup option without changing disposal", () => {
+    const s = signal(0);
+    const log: string[] = [];
+    const dispose = effect(() => {
+      const v = s();
+      log.push(`run:${v}`);
+      return () => log.push(`clean:${v}`);
+    }, { manualCleanup: true });
+
+    s.set(1);
+    dispose();
+
+    assert(
+      log.join(",") === "run:0,clean:0,run:1,clean:1",
+      `got ${log.join(",")}`,
+    );
+  }, results);
+
   test("linkedSignal derives from source and is writable", () => {
     const source = signal(1);
     const linked = linkedSignal(() => source() * 10);

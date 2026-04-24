@@ -11,6 +11,7 @@ export {
   batch,
   untracked,
   isSignal,
+  type EffectOptions,
   type ReadSignal,
   type WriteSignal,
 } from "./signals.js";

@@ -80,11 +80,30 @@ The package exports:
 - `signal`
 - `computed`
 - `effect`
+- `EffectOptions`
 - `batch`
 - `untracked`
 - `isSignal`
 - `linkedSignal`
 - `resource`
+
+### `effect` options
+
+```ts
+import { effect } from "@demchenko.di/signals";
+
+const stop = effect(() => {
+  // ...
+}, {
+  allowSignalWrites: true,
+  manualCleanup: true,
+  scheduler: (run) => queueMicrotask(run),
+});
+```
+
+- `allowSignalWrites` defaults to `true`. Set it to `false` to throw on signal writes from the effect or its cleanup.
+- `manualCleanup` is accepted for compatibility with owner-scoped effect APIs. In this library, effects are always disposed manually via the function returned from `effect()`.
+- `scheduler` customizes reruns after invalidation. The first effect run still happens synchronously.
 
 ## Development
 
