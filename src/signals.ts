@@ -20,6 +20,24 @@ export type WriteSignal<T> = ReadSignal<T> & {
   mutate(mutator: (current: T) => void): void;
 };
 
+export interface EffectOptions {
+  /**
+   * When false, signal writes performed by this effect or its cleanup throw.
+   * Defaults to true.
+   */
+  allowSignalWrites?: boolean;
+  /**
+   * Compatibility option for owner-scoped effect APIs. Effects in this library
+   * are always disposed manually via the function returned from `effect()`.
+   */
+  manualCleanup?: boolean;
+  /**
+   * Custom rerun scheduler. The initial run is still synchronous; the
+   * scheduler only controls invalidated reruns.
+   */
+  scheduler?: (run: () => void) => void;
+}
+
 type Subscriber = ComputedNode<unknown> | EffectNode;
 type Producer = SignalNode<unknown> | ComputedNode<unknown>;
 
@@ -48,9 +66,12 @@ interface EffectNode {
   dependencies: Map<Producer, number>;
   scheduled: boolean;
   disposed: boolean;
+  allowSignalWrites: boolean;
+  scheduler?: (run: () => void) => void;
 }
 
 let activeSubscriber: Subscriber | null = null;
+let activeSignalWritesAllowed = true;
 let batchDepth = 0;
 const pendingEffects = new Set<EffectNode>();
 
@@ -75,12 +96,30 @@ function flushEffects() {
     const batch = Array.from(pendingEffects);
     pendingEffects.clear();
     for (const e of batch) {
-      e.scheduled = false;
-      if (!e.disposed) {
-        runEffect(e);
-      }
+      dispatchEffect(e);
     }
   }
+}
+
+function dispatchEffect(node: EffectNode) {
+  if (node.disposed || !node.scheduled) {
+    return;
+  }
+  if (node.scheduler) {
+    node.scheduler(() => {
+      if (node.disposed || !node.scheduled) {
+        return;
+      }
+      node.scheduled = false;
+      runEffect(node);
+      if (batchDepth === 0) {
+        flushEffects();
+      }
+    });
+    return;
+  }
+  node.scheduled = false;
+  runEffect(node);
 }
 
 function trackRead(node: Producer) {
@@ -111,6 +150,22 @@ function clearDependencies(sub: ComputedNode<unknown> | EffectNode) {
   sub.dependencies.clear();
 }
 
+function assertSignalWritesAllowed() {
+  if (!activeSignalWritesAllowed) {
+    throw new Error("Signal writes are not allowed in this effect.");
+  }
+}
+
+function withSignalWritesAllowed<T>(allowed: boolean, fn: () => T): T {
+  const prev = activeSignalWritesAllowed;
+  activeSignalWritesAllowed = allowed;
+  try {
+    return fn();
+  } finally {
+    activeSignalWritesAllowed = prev;
+  }
+}
+
 export function signal<T>(initial: T): WriteSignal<T> {
   const node: SignalNode<T> = {
     kind: "signal",
@@ -125,6 +180,7 @@ export function signal<T>(initial: T): WriteSignal<T> {
   }) as WriteSignal<T>;
 
   read.set = (next) => {
+    assertSignalWritesAllowed();
     if (Object.is(next, node.value)) {
       return;
     }
@@ -136,9 +192,22 @@ export function signal<T>(initial: T): WriteSignal<T> {
     }
   };
 
-  read.update = (updater) => read.set(updater(node.value));
+  read.update = (updater) => {
+    assertSignalWritesAllowed();
+    const next = updater(node.value);
+    if (Object.is(next, node.value)) {
+      return;
+    }
+    node.value = next;
+    node.version++;
+    notifySubscribers(node as SignalNode<unknown>);
+    if (batchDepth === 0) {
+      flushEffects();
+    }
+  };
 
   read.mutate = (mutator) => {
+    assertSignalWritesAllowed();
     mutator(node.value);
     node.version++;
     notifySubscribers(node as SignalNode<unknown>);
@@ -204,7 +273,7 @@ function recompute<T>(node: ComputedNode<T>) {
   }
 }
 
-export function effect(fn: () => void | (() => void)): () => void {
+export function effect(fn: () => void | (() => void), options: EffectOptions = {}): () => void {
   const node: EffectNode = {
     kind: "effect",
     fn,
@@ -212,6 +281,8 @@ export function effect(fn: () => void | (() => void)): () => void {
     dependencies: new Map(),
     scheduled: false,
     disposed: false,
+    allowSignalWrites: options.allowSignalWrites ?? true,
+    scheduler: options.scheduler,
   };
   runEffect(node);
   return () => {
@@ -228,7 +299,7 @@ function runCleanup(node: EffectNode) {
     return;
   }
   try {
-    node.cleanup();
+    withSignalWritesAllowed(node.allowSignalWrites, () => node.cleanup?.());
   } catch (err) {
     console.error("[signals] effect cleanup threw:", err);
   }
@@ -241,7 +312,7 @@ function runEffect(node: EffectNode) {
   clearDependencies(node);
   activeSubscriber = node;
   try {
-    const result = node.fn();
+    const result = withSignalWritesAllowed(node.allowSignalWrites, () => node.fn());
     if (typeof result === "function") {
       node.cleanup = result;
     }
