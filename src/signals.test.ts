@@ -33,6 +33,19 @@ export function runTests(): TestResult[] {
     assert(s() === 12, "after update");
   }, results);
 
+  test("signal exposes a stable readonly view", () => {
+    const s = signal(1);
+    const readonlyA = s.asReadonly();
+    const readonlyB = s.asReadonly();
+
+    assert(readonlyA === readonlyB, "readonly view should be stable");
+    assert(readonlyA() === 1, "readonly view reads current value");
+    s.set(5);
+    assert(readonlyA() === 5, "readonly view stays in sync");
+    assert(isSignal(readonlyA), "readonly view should be branded as a signal");
+    assert(!("set" in (readonlyA as object)), "readonly view should not expose writes");
+  }, results);
+
   test("computed memoizes and invalidates", () => {
     const a = signal(2);
     const b = signal(3);

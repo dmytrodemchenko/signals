@@ -18,6 +18,7 @@ export type WriteSignal<T> = ReadSignal<T> & {
   set(value: T): void;
   update(updater: (prev: T) => T): void;
   mutate(mutator: (current: T) => void): void;
+  asReadonly(): ReadSignal<T>;
 };
 
 export interface EffectOptions {
@@ -178,6 +179,10 @@ export function signal<T>(initial: T): WriteSignal<T> {
     trackRead(node as SignalNode<unknown>);
     return node.value;
   }) as WriteSignal<T>;
+  const readonlyView = brand<() => T>(function readonlyView() {
+    trackRead(node as SignalNode<unknown>);
+    return node.value;
+  }) as ReadSignal<T>;
 
   read.set = (next) => {
     assertSignalWritesAllowed();
@@ -215,6 +220,8 @@ export function signal<T>(initial: T): WriteSignal<T> {
       flushEffects();
     }
   };
+
+  read.asReadonly = () => readonlyView;
 
   return read;
 }

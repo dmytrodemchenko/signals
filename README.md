@@ -24,9 +24,10 @@ import { signal, computed, effect, batch } from "@demchenko.di/signals";
 
 const count = signal(0);
 const doubled = computed(() => count() * 2);
+const readonlyCount = count.asReadonly();
 
 const stop = effect(() => {
-  console.log("count:", count(), "doubled:", doubled());
+  console.log("count:", readonlyCount(), "doubled:", doubled());
 });
 
 batch(() => {
@@ -82,6 +83,19 @@ effect(() => {
     console.log("Refreshing user while keeping stale data visible");
   }
 });
+```
+
+### Read-only view
+
+```ts
+import { signal } from "@demchenko.di/signals";
+
+const count = signal(0);
+const readonlyCount = count.asReadonly();
+
+readonlyCount(); // 0
+count.set(1);
+readonlyCount(); // 1
 ```
 
 ## API
