@@ -1,6 +1,8 @@
 # signals
 
-Zero-dependency reactive signals for TypeScript and JavaScript, with an API and mental model similar to Angular Signals: writable signals, computed values, effects, batching, and dependency tracking with lazy recomputation.
+Zero-dependency, glitch-free reactive signals for TypeScript and JavaScript. Built with a highly optimized Push/Pull architecture (inspired by Angular) that guarantees zero wasted computations.
+
+Perfectly suited for **both Browser and Node.js** environments. Use it to drive UI frameworks, build reactive CLI tools, or manage complex server-side state machines.
 
 Package: https://www.npmjs.com/package/@demchenko.di/signals
 
@@ -14,8 +16,11 @@ npm install @demchenko.di/signals
 
 ## Features
 
+- **Glitch-free Push/Pull engine:** Guarantees effects only run when values actually change.
+- **Node.js Ready:** Extremely lightweight, fast, and completely decoupled from the DOM.
 - Small core API: `signal`, `computed`, `effect`, `batch`, `untracked`
 - Extra primitives: `linkedSignal`, `resource`, `optimistic`
+- Dual build: Unminified for development, minified for production (`@demchenko.di/signals/min`).
 - No runtime dependencies
 - Typed public API with generated `.d.ts` files
 
