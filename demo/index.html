@@ -3,71 +3,75 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>signals demo</title>
+    <title>Signals</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="page">
-      <section class="hero">
+      <header class="hero">
         <div>
-          <p class="eyebrow">Signals Playground</p>
-          <h1>Reactive primitives with live demos and docs</h1>
-          <p>Switch between runnable examples and a compact reference for the public API.</p>
-          <div class="tabs" role="tablist" aria-label="Demo sections">
-            <button class="tab-button active" id="tab-demo-button" type="button" role="tab" aria-selected="true" aria-controls="tab-demo" data-tab-target="demo">Demo</button>
-            <button class="tab-button" id="tab-docs-button" type="button" role="tab" aria-selected="false" aria-controls="tab-docs" data-tab-target="docs">Docs</button>
-          </div>
+          <h1>Signals</h1>
+          <p>Reactive primitives for JavaScript.</p>
         </div>
         <button id="run-tests" class="primary" type="button">Run tests</button>
-      </section>
+      </header>
 
-      <div id="tab-demo" data-tab-panel="demo">
-      <section class="grid three-up">
+      <nav class="tab-nav" role="tablist" aria-label="Sections">
+        <button class="tab-button active" id="tab-demo-button" type="button" role="tab" aria-selected="true" aria-controls="tab-demo" data-tab-target="demo">Demo</button>
+        <button class="tab-button" id="tab-docs-button" type="button" role="tab" aria-selected="false" aria-controls="tab-docs" data-tab-target="docs">Docs</button>
+      </nav>
+
+      <div class="content" id="tab-demo" data-tab-panel="demo">
         <article class="card">
-          <h2>signal()</h2>
-          <div class="stack">
-            <p>Use a signal for writable reactive state. Read it by calling it like a function and update it with <code>set</code> or <code>update</code>.</p>
-            <div class="console small">const count = signal(0)
+          <div class="card-row">
+            <div>
+              <h2>signal()</h2>
+              <p>Writable reactive state. Read by calling it, write with <code>set</code> or <code>update</code>.</p>
+            </div>
+            <pre class="code-sample"><code class="language-javascript">const count = signal(0)
 
 count()
 count.set(1)
-count.update((value) =&gt; value + 1)</div>
+count.update((v) =&gt; v + 1)</code></pre>
           </div>
         </article>
 
         <article class="card">
-          <h2>computed()</h2>
-          <div class="stack">
-            <p>Use a computed signal for derived state. It tracks dependencies automatically and recomputes lazily when an input changes.</p>
-            <div class="console small">const price = signal(25)
-const quantity = signal(3)
+          <div class="card-row">
+            <div>
+              <h2>computed()</h2>
+              <p>Derived state. Tracks dependencies automatically and recomputes lazily when inputs change.</p>
+            </div>
+            <pre class="code-sample"><code class="language-javascript">const price = signal(25)
+const qty = signal(3)
 
-const total = computed(() =&gt; price() * quantity())
+const total = computed(() =&gt; price() * qty())
 
-total()</div>
+total()</code></pre>
           </div>
         </article>
 
         <article class="card">
-          <h2>linkedSignal()</h2>
-          <div class="stack">
-            <p>Use a linked signal when the value should be derived from another signal but still stay writable between source changes.</p>
-            <div class="console small">const base = signal(100)
+          <div class="card-row">
+            <div>
+              <h2>linkedSignal()</h2>
+              <p>Derived but writable. Resets to the source value whenever the source changes.</p>
+            </div>
+            <pre class="code-sample"><code class="language-javascript">const base = signal(100)
 const draft = linkedSignal(() =&gt; base())
 
 draft.set(125)
 base.set(200)
 
-draft()</div>
+draft()</code></pre>
           </div>
         </article>
-      </section>
 
-      <section class="grid" style="margin-top: 26px">
         <article class="card">
-          <h2>linkedSignal()</h2>
+          <h2>linkedSignal() · Live</h2>
           <div class="stack">
-            <p>Draft is derived from base but stays writable. Changing base resets the draft.</p>
+            <p>Draft follows base but stays writable. Changing base resets the draft.</p>
             <div id="linked-console" class="console"></div>
             <div class="controls">
               <button id="draft-up" class="primary" type="button">draft += 1</button>
@@ -95,16 +99,13 @@ draft()</div>
               <button id="reload" type="button">reload</button>
               <button id="random" type="button">random</button>
             </div>
-            <p class="footer-note">Open this page through a local static server so module imports and fetch requests work consistently.</p>
           </div>
         </article>
-      </section>
 
-      <section class="grid" style="margin-top: 26px">
         <article class="card">
           <h2>optimistic() · Pending Local Intent</h2>
           <div class="stack">
-            <p>Queue optimistic likes immediately, then either commit them to the server state or roll them back. External server syncs still rebase pending optimistic layers.</p>
+            <p>Queue optimistic updates immediately, then commit or roll back when the request settles.</p>
             <div class="console">
               <div class="ledger">
                 <div class="ledger-row">
@@ -127,25 +128,22 @@ draft()</div>
               <button id="optimistic-sync" type="button">server sync +5</button>
             </div>
             <div id="optimistic-console" class="console optimistic-trace"></div>
-            <p class="footer-note">Try clicking <code>like (commit)</code> a few times, then <code>server sync +5</code> while requests are still pending. The optimistic value rebases without mutating the source signal early.</p>
           </div>
         </article>
-      </section>
 
-      <section class="card" style="margin-top: 26px">
-        <h2>Browser Test Results</h2>
-        <div class="stack">
-          <p>These checks exercise core signal behavior from the distributed build.</p>
-          <ul id="test-results" class="results"></ul>
-        </div>
-      </section>
+        <article class="card">
+          <h2>Test Results</h2>
+          <div class="stack">
+            <p>Core signal behavior from the distributed build.</p>
+            <ul id="test-results" class="results"></ul>
+          </div>
+        </article>
       </div>
 
-      <div id="tab-docs" data-tab-panel="docs" hidden>
-        <section class="card">
+      <div class="content" id="tab-docs" data-tab-panel="docs" hidden>
+        <article class="card">
           <h2>API Reference</h2>
           <div class="stack">
-            <p>The core package stays small. Most helpers build directly on top of <code>signal()</code>, <code>computed()</code>, and <code>effect()</code>.</p>
             <table class="api-table">
               <thead>
                 <tr>
@@ -168,7 +166,7 @@ draft()</div>
                 <tr>
                   <td><code>effect(fn, options?)</code></td>
                   <td>Reactive side effects with cleanup and optional rerun scheduling.</td>
-                  <td>You need to synchronize with logging, storage, DOM, timers, or network side effects.</td>
+                  <td>You need to sync with DOM, storage, timers, or network side effects.</td>
                 </tr>
                 <tr>
                   <td><code>batch(fn)</code></td>
@@ -178,88 +176,60 @@ draft()</div>
                 <tr>
                   <td><code>untracked(fn)</code></td>
                   <td>Reads signals without subscribing the current computation.</td>
-                  <td>You need the current value for branching, snapshots, or logging without dependency capture.</td>
+                  <td>You need the current value for branching or logging without capturing a dependency.</td>
                 </tr>
                 <tr>
                   <td><code>linkedSignal(...)</code></td>
-                  <td>Writable derived state that resets or reconciles whenever its source changes.</td>
+                  <td>Writable derived state that resets when its source changes.</td>
                   <td>You need editable draft state that should still follow a parent signal.</td>
                 </tr>
                 <tr>
                   <td><code>resource(...)</code></td>
-                  <td>Reactive async loading with cancellation, stale-value retention, and loading helpers.</td>
-                  <td>You fetch or recompute async data from another signal-driven request key.</td>
+                  <td>Reactive async loading with cancellation and stale-value retention.</td>
+                  <td>You fetch async data driven by another signal.</td>
                 </tr>
                 <tr>
                   <td><code>optimistic(source)</code></td>
-                  <td>Projects temporary local intent on top of settled state, then commits or rolls back later.</td>
-                  <td>You need optimistic UI for mutations without mutating the base signal early.</td>
+                  <td>Projects local intent on top of settled state, then commits or rolls back.</td>
+                  <td>You need optimistic UI without mutating base state early.</td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </section>
+        </article>
 
-        <section class="docs-grid" style="margin-top: 26px">
-          <article class="card">
-            <h2>When To Use optimistic()</h2>
-            <div class="stack">
-              <p><code>optimistic()</code> is for mutations where the user should see intent immediately, but the actual source of truth still comes back from the server.</p>
-              <ul class="doc-list">
-                <li>
-                  <strong>Reaction buttons</strong>
-                  Social feeds, likes, bookmarks, clap counters, and vote buttons should feel immediate even if the network takes 600ms.
-                </li>
-                <li>
-                  <strong>Kanban and task reordering</strong>
-                  Move a card instantly in the UI, then commit the new order when the server accepts the mutation.
-                </li>
-                <li>
-                  <strong>Chat and comments</strong>
-                  Insert a message or comment locally as “pending”, then finalize or remove it based on the server result.
-                </li>
-                <li>
-                  <strong>Inline settings toggles</strong>
-                  Feature switches, follow/unfollow, star/unstar, and archive actions should reflect the click immediately while the mutation is in flight.
-                </li>
-              </ul>
-            </div>
-          </article>
+        <article class="card">
+          <h2>When To Use optimistic()</h2>
+          <div class="stack">
+            <ul class="doc-list">
+              <li><strong>Reaction buttons</strong> Likes, bookmarks, votes — should feel instant even if the network takes 600ms.</li>
+              <li><strong>Kanban reordering</strong> Move a card in the UI immediately, then commit when the server accepts.</li>
+              <li><strong>Chat and comments</strong> Insert a message as pending, then finalize or remove it on the server response.</li>
+              <li><strong>Inline toggles</strong> Follow/unfollow, star/unstar, archive — reflect the click right away.</li>
+            </ul>
+          </div>
+        </article>
 
-          <article class="card">
-            <h2>Why Not Just Mutate Base State?</h2>
-            <div class="stack">
-              <ul class="doc-list">
-                <li>
-                  <strong>Rollback stays cheap</strong>
-                  A failed request just removes the optimistic layer instead of reconstructing previous state manually.
-                </li>
-                <li>
-                  <strong>Server sync still wins</strong>
-                  If the backend pushes fresher data while a mutation is pending, optimistic layers rebase on top of the latest base signal.
-                </li>
-                <li>
-                  <strong>Overlap is predictable</strong>
-                  Several optimistic actions can stack, settle, or fail independently without corrupting the source signal.
-                </li>
-                <li>
-                  <strong>Cleaner mental model</strong>
-                  Base state is committed truth. Optimistic state is temporary local projection.
-                </li>
-              </ul>
-            </div>
-          </article>
-        </section>
+        <article class="card">
+          <h2>Why Not Mutate Base State?</h2>
+          <div class="stack">
+            <ul class="doc-list">
+              <li><strong>Cheap rollback</strong> A failed request removes the optimistic layer instead of reconstructing previous state.</li>
+              <li><strong>Server wins</strong> Backend pushes still rebase optimistic layers on the latest base value.</li>
+              <li><strong>Predictable overlap</strong> Multiple actions can stack, settle, or fail independently.</li>
+              <li><strong>Clear model</strong> Base state is committed truth. Optimistic state is local projection.</li>
+            </ul>
+          </div>
+        </article>
 
-        <section class="card" style="margin-top: 26px">
+        <article class="card">
           <h2>optimistic() Example</h2>
           <div class="stack">
-            <p>Typical mutation flow from real product code: show the new value immediately, then either commit it into base state or roll it back when the request settles.</p>
-            <div class="console small">const serverLikes = signal(42)
+            <pre class="code-sample"><code class="language-javascript">const serverLikes = signal(42)
 const optimisticLikes = optimistic(serverLikes)
 
 async function likePost() {
-  const tx = optimisticLikes.apply((value) =&gt; value + 1)
+  const tx = optimisticLikes.apply((v) =&gt; v + 1)
 
   try {
     const result = await api.likePost()
@@ -267,13 +237,15 @@ async function likePost() {
   } catch {
     tx.rollback()
   }
-}</div>
-            <p class="footer-note">Use <code>resource()</code> for async reads. Use <code>optimistic()</code> for async writes that should feel instant.</p>
+}</code></pre>
           </div>
-        </section>
+        </article>
       </div>
     </main>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+    <script>hljs.highlightAll();</script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
