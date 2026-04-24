@@ -45,7 +45,17 @@
     "signals",
     "reactivity",
     "state",
-    "typescript"
+    "typescript",
+    "nodejs",
+    "angular",
+    "javascript",
+    "RxJS",
+    "reactive programming",
+    "reactive state management",
+    "reactive libraries",
+    "reactive programming libraries",
+    "reactive programming tools",
+    "reactive programming frameworks"
   ],
   "devDependencies": {
     "@types/node": "^25.6.0",
