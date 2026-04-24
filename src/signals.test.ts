@@ -4,6 +4,7 @@
  */
 import { signal, computed, effect, batch, untracked, isSignal } from "./signals.js";
 import { linkedSignal } from "./linked-signal.js";
+import { optimistic } from "./optimistic.js";
 import { resource } from "./resource.js";
 
 export type TestResult = { name: string; passed: boolean; error?: string };
@@ -31,6 +32,41 @@ export function runTests(): TestResult[] {
     assert(s() === 2, "after set");
     s.update((v) => v + 10);
     assert(s() === 12, "after update");
+  }, results);
+
+  test("signal supports custom equality for set and update", () => {
+    const s = signal({ id: 1, label: "a" }, {
+      equal: (a, b) => a.id === b.id,
+    });
+    const seen: string[] = [];
+    const dispose = effect(() => {
+      seen.push(s().label);
+    });
+
+    s.set({ id: 1, label: "b" });
+    s.update((value) => ({ ...value, label: "c" }));
+    assert(seen.join(",") === "a", `equal writes should be skipped, got ${seen.join(",")}`);
+
+    s.set({ id: 2, label: "d" });
+    assert(seen.join(",") === "a,d", `unequal write should notify, got ${seen.join(",")}`);
+    dispose();
+  }, results);
+
+  test("signal mutate still notifies with custom equality", () => {
+    const s = signal({ id: 1, count: 0 }, {
+      equal: (a, b) => a.id === b.id,
+    });
+    const seen: number[] = [];
+    const dispose = effect(() => {
+      seen.push(s().count);
+    });
+
+    s.mutate((value) => {
+      value.count += 1;
+    });
+
+    assert(seen.join(",") === "0,1", `mutate should still notify, got ${seen.join(",")}`);
+    dispose();
   }, results);
 
   test("signal exposes a stable readonly view", () => {
@@ -261,6 +297,101 @@ export function runTests(): TestResult[] {
     assert(selection() === "b", "preserved when still valid");
     list.set(["x", "y"]);
     assert(selection() === "x", "reset when invalid");
+  }, results);
+
+  test("optimistic overlays source and tracks pending state", () => {
+    const base = signal(1);
+    const overlay = optimistic(base);
+
+    assert(overlay() === 1, "initial value");
+    assert(overlay.hasPending() === false, "starts without pending layers");
+    assert(overlay.pendingCount() === 0, "starts with zero pending layers");
+
+    const tx = overlay.apply((value) => value + 2);
+    assert(overlay() === 3, "applies optimistic patch");
+    assert(overlay.hasPending() === true, "tracks pending state");
+    assert(overlay.pendingCount() === 1, "tracks pending count");
+
+    tx.rollback();
+    assert(overlay() === 1, "rollback restores source value");
+    assert(overlay.hasPending() === false, "rollback clears pending state");
+  }, results);
+
+  test("optimistic rebases on source updates while pending", () => {
+    const base = signal(10);
+    const overlay = optimistic(base);
+
+    overlay.apply((value) => value + 1);
+    assert(overlay() === 11, "initial optimistic projection");
+
+    base.set(20);
+    assert(overlay() === 21, "rebases overlay on latest source value");
+  }, results);
+
+  test("optimistic supports overlapping layers and selective rollback", () => {
+    const base = signal(0);
+    const overlay = optimistic(base);
+
+    const first = overlay.apply((value) => value + 1);
+    const second = overlay.apply((value) => value + 10);
+
+    assert(overlay() === 11, `expected stacked optimistic value, got ${overlay()}`);
+    assert(overlay.pendingCount() === 2, `expected two pending layers, got ${overlay.pendingCount()}`);
+
+    first.rollback();
+    assert(overlay() === 10, `expected second layer to remain, got ${overlay()}`);
+    assert(overlay.pendingCount() === 1, `expected one pending layer, got ${overlay.pendingCount()}`);
+
+    second.rollback();
+    assert(overlay() === 0, `expected rollback to restore source, got ${overlay()}`);
+  }, results);
+
+  test("optimistic commit can update the base signal without a transient rollback", () => {
+    const base = signal(0);
+    const overlay = optimistic(base);
+    const seen: number[] = [];
+    const dispose = effect(() => {
+      seen.push(overlay());
+    });
+
+    const tx = overlay.apply((value) => value + 1);
+    tx.commit(5);
+
+    assert(base() === 5, `expected base to update on commit, got ${base()}`);
+    assert(overlay() === 5, `expected overlay to settle to committed base, got ${overlay()}`);
+    assert(seen.join(",") === "0,1,5", `commit should not flicker, got ${seen.join(",")}`);
+    dispose();
+  }, results);
+
+  test("optimistic rollback preserves other committed transactions", () => {
+    const base = signal(42);
+    const overlay = optimistic(base);
+
+    const committed = overlay.apply((value) => value + 1);
+    const rejected = overlay.apply((value) => value + 1);
+
+    assert(overlay() === 44, `expected two pending layers, got ${overlay()}`);
+
+    committed.commit((value) => value + 1);
+    assert(base() === 43, `expected committed base update, got ${base()}`);
+    assert(overlay() === 44, `expected remaining optimistic layer on top of committed base, got ${overlay()}`);
+
+    rejected.rollback();
+    assert(base() === 43, `rollback should not undo committed base updates, got ${base()}`);
+    assert(overlay() === 43, `rollback should settle to latest base, got ${overlay()}`);
+  }, results);
+
+  test("optimistic clear removes layers and invalidates stale transactions", () => {
+    const base = signal(2);
+    const overlay = optimistic(base);
+    const tx = overlay.apply((value) => value + 5);
+
+    overlay.clear();
+    assert(overlay() === 2, "clear should drop optimistic layers");
+    assert(overlay.pendingCount() === 0, "clear should reset pending count");
+
+    tx.commit(9);
+    assert(base() === 2, "stale transactions should not update base after clear");
   }, results);
 
   return results;

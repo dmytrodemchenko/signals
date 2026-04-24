@@ -13,7 +13,7 @@ npm install @demchenko.di/signals
 ## Features
 
 - Small core API: `signal`, `computed`, `effect`, `batch`, `untracked`
-- Extra primitives: `linkedSignal`, `resource`
+- Extra primitives: `linkedSignal`, `resource`, `optimistic`
 - No runtime dependencies
 - Typed public API with generated `.d.ts` files
 
@@ -36,6 +36,19 @@ batch(() => {
 });
 
 stop();
+```
+
+### Custom equality
+
+```ts
+import { signal } from "@demchenko.di/signals";
+
+const user = signal({ id: 1, name: "Ada" }, {
+  equal: (a, b) => a.id === b.id,
+});
+
+user.set({ id: 1, name: "Ada Lovelace" }); // skipped
+user.set({ id: 2, name: "Grace" }); // notifies
 ```
 
 ### `linkedSignal`
@@ -85,6 +98,26 @@ effect(() => {
 });
 ```
 
+### `optimistic`
+
+```ts
+import { optimistic, signal } from "@demchenko.di/signals";
+
+const serverLikes = signal(10);
+const optimisticLikes = optimistic(serverLikes);
+
+const tx = optimisticLikes.apply((value) => value + 1);
+
+try {
+  await api.like();
+  tx.commit((value) => value + 1);
+} catch {
+  tx.rollback();
+}
+```
+
+Use `optimistic()` for async writes that should feel immediate in the UI without mutating committed base state too early. It is especially useful for reactions, toggles, reordering, inline edits, and other mutation-heavy flows where rollback matters.
+
 ### Read-only view
 
 ```ts
@@ -110,7 +143,20 @@ The package exports:
 - `untracked`
 - `isSignal`
 - `linkedSignal`
+- `optimistic`
 - `resource`
+
+### `optimistic` helpers
+
+- `optimistic(source)` creates a projected signal layered on top of a writable base signal.
+- `apply(patch)` adds a pending optimistic layer and returns a transaction with `commit()` and `rollback()`.
+- `hasPending()` is `true` while one or more optimistic layers are active.
+- `pendingCount()` is the number of active optimistic layers.
+- `clear()` removes all optimistic layers.
+- `commit(nextBase?)` removes the layer and optionally writes a final value or updater into the base signal.
+- `rollback()` removes the layer without touching the base signal.
+
+Optimistic layers always rebase on top of the latest base signal value. If the server updates the underlying state while a mutation is pending, the optimistic projection recalculates from the new base value automatically.
 
 ### `resource` state helpers
 

@@ -4,255 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>signals demo</title>
-    <style>
-      :root {
-        --bg: #f6f8fc;
-        --panel: rgba(255, 255, 255, 0.92);
-        --panel-border: #d9e1f0;
-        --ink: #1a2338;
-        --muted: #6d7b98;
-        --accent: #121a31;
-        --accent-2: #6f86b6;
-        --surface: #edf2fa;
-        --success: #1d7f5f;
-        --error: #bf4b5a;
-        --shadow: 0 18px 48px rgba(49, 68, 110, 0.08);
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        min-height: 100vh;
-        font-family: "Avenir Next", "Helvetica Neue", sans-serif;
-        color: var(--ink);
-        background:
-          radial-gradient(circle at top left, rgba(112, 142, 197, 0.16), transparent 32%),
-          radial-gradient(circle at top right, rgba(195, 215, 255, 0.32), transparent 28%),
-          linear-gradient(180deg, #fcfdff 0%, var(--bg) 100%);
-      }
-
-      .page {
-        width: min(1220px, calc(100vw - 32px));
-        margin: 48px auto;
-      }
-
-      .hero,
-      .card {
-        background: var(--panel);
-        border: 1px solid var(--panel-border);
-        border-radius: 22px;
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(10px);
-      }
-
-      .hero {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 24px;
-        padding: 34px 36px;
-        margin-bottom: 26px;
-      }
-
-      .eyebrow {
-        margin: 0 0 6px;
-        font-size: 0.98rem;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--accent-2);
-      }
-
-      .hero p,
-      .card p {
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.35;
-        font-size: 1rem;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 26px;
-      }
-
-      .grid.three-up {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
-
-      .card {
-        padding: 28px 34px 34px;
-      }
-
-      h1,
-      h2 {
-        margin: 0;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-      }
-
-      h1 {
-        font-size: 1.7rem;
-      }
-
-      h2 {
-        font-size: 1.02rem;
-      }
-
-      .stack {
-        display: grid;
-        gap: 18px;
-        margin-top: 18px;
-      }
-
-      .console {
-        min-height: 136px;
-        padding: 26px 28px;
-        border-radius: 16px;
-        background: var(--surface);
-        color: var(--ink);
-        font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-        font-size: 1rem;
-        line-height: 1.45;
-        white-space: pre-wrap;
-      }
-
-      .console.small {
-        min-height: 0;
-        font-size: 0.92rem;
-        padding: 20px 22px;
-      }
-
-      .controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-
-      button {
-        appearance: none;
-        border: 1px solid var(--panel-border);
-        border-radius: 14px;
-        padding: 14px 22px;
-        min-width: 92px;
-        font: inherit;
-        font-weight: 700;
-        color: var(--accent);
-        background: #fff;
-        cursor: pointer;
-        transition:
-          transform 160ms ease,
-          background-color 160ms ease,
-          color 160ms ease,
-          border-color 160ms ease,
-          box-shadow 160ms ease;
-      }
-
-      button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 10px 22px rgba(18, 26, 49, 0.08);
-      }
-
-      button.primary {
-        background: var(--accent);
-        border-color: var(--accent);
-        color: #fff;
-      }
-
-      .results {
-        display: grid;
-        gap: 10px;
-        padding: 0;
-        margin: 0;
-        list-style: none;
-      }
-
-      .results li {
-        border-radius: 12px;
-        padding: 12px 14px;
-        background: var(--surface);
-        color: var(--ink);
-        font-size: 0.95rem;
-      }
-
-      .results li.pass {
-        border: 1px solid rgba(29, 127, 95, 0.18);
-        color: var(--success);
-      }
-
-      .results li.fail {
-        border: 1px solid rgba(191, 75, 90, 0.18);
-        color: var(--error);
-      }
-
-      .pokemon {
-        display: grid;
-        grid-template-columns: 96px 1fr;
-        align-items: center;
-        gap: 18px;
-      }
-
-      .pokemon img {
-        width: 88px;
-        height: 88px;
-        object-fit: contain;
-        image-rendering: pixelated;
-        filter: drop-shadow(0 10px 18px rgba(111, 134, 182, 0.2));
-      }
-
-      .status {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 0.92rem;
-        font-weight: 700;
-        color: var(--accent-2);
-      }
-
-      .status::before {
-        content: "";
-        width: 10px;
-        height: 10px;
-        border-radius: 999px;
-        background: currentColor;
-      }
-
-      .footer-note {
-        margin-top: 14px;
-        font-size: 0.9rem;
-        color: var(--muted);
-      }
-
-      @media (max-width: 920px) {
-        .hero {
-          flex-direction: column;
-          align-items: stretch;
-        }
-
-        .grid {
-          grid-template-columns: 1fr;
-        }
-
-        .grid.three-up {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="page">
       <section class="hero">
         <div>
-          <p class="eyebrow">Test Suite</p>
-          <p>The library validates itself in your browser.</p>
+          <p class="eyebrow">Signals Playground</p>
+          <h1>Reactive primitives with live demos and docs</h1>
+          <p>Switch between runnable examples and a compact reference for the public API.</p>
+          <div class="tabs" role="tablist" aria-label="Demo sections">
+            <button class="tab-button active" id="tab-demo-button" type="button" role="tab" aria-selected="true" aria-controls="tab-demo" data-tab-target="demo">Demo</button>
+            <button class="tab-button" id="tab-docs-button" type="button" role="tab" aria-selected="false" aria-controls="tab-docs" data-tab-target="docs">Docs</button>
+          </div>
         </div>
         <button id="run-tests" class="primary" type="button">Run tests</button>
       </section>
 
+      <div id="tab-demo" data-tab-panel="demo">
       <section class="grid three-up">
         <article class="card">
           <h2>signal()</h2>
@@ -331,6 +100,38 @@ draft()</div>
         </article>
       </section>
 
+      <section class="grid" style="margin-top: 26px">
+        <article class="card">
+          <h2>optimistic() · Pending Local Intent</h2>
+          <div class="stack">
+            <p>Queue optimistic likes immediately, then either commit them to the server state or roll them back. External server syncs still rebase pending optimistic layers.</p>
+            <div class="console">
+              <div class="ledger">
+                <div class="ledger-row">
+                  <span>serverLikes()</span>
+                  <strong id="optimistic-server">0</strong>
+                </div>
+                <div class="ledger-row">
+                  <span>optimisticLikes()</span>
+                  <strong id="optimistic-overlay">0</strong>
+                </div>
+                <div class="ledger-row">
+                  <span>pendingCount()</span>
+                  <strong id="optimistic-pending">0</strong>
+                </div>
+              </div>
+            </div>
+            <div class="controls">
+              <button id="optimistic-like" class="primary" type="button">like (commit)</button>
+              <button id="optimistic-fail" type="button">like (rollback)</button>
+              <button id="optimistic-sync" type="button">server sync +5</button>
+            </div>
+            <div id="optimistic-console" class="console optimistic-trace"></div>
+            <p class="footer-note">Try clicking <code>like (commit)</code> a few times, then <code>server sync +5</code> while requests are still pending. The optimistic value rebases without mutating the source signal early.</p>
+          </div>
+        </article>
+      </section>
+
       <section class="card" style="margin-top: 26px">
         <h2>Browser Test Results</h2>
         <div class="stack">
@@ -338,6 +139,139 @@ draft()</div>
           <ul id="test-results" class="results"></ul>
         </div>
       </section>
+      </div>
+
+      <div id="tab-docs" data-tab-panel="docs" hidden>
+        <section class="card">
+          <h2>API Reference</h2>
+          <div class="stack">
+            <p>The core package stays small. Most helpers build directly on top of <code>signal()</code>, <code>computed()</code>, and <code>effect()</code>.</p>
+            <table class="api-table">
+              <thead>
+                <tr>
+                  <th>API</th>
+                  <th>What It Solves</th>
+                  <th>Use It When</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>signal(initial, options?)</code></td>
+                  <td>Writable reactive state with <code>set</code>, <code>update</code>, <code>mutate</code>, <code>asReadonly()</code>, and optional custom equality.</td>
+                  <td>You own the source of truth and need explicit writes.</td>
+                </tr>
+                <tr>
+                  <td><code>computed(fn)</code></td>
+                  <td>Lazily derived state that tracks dependencies automatically.</td>
+                  <td>You need a value derived from other signals without storing duplicate state.</td>
+                </tr>
+                <tr>
+                  <td><code>effect(fn, options?)</code></td>
+                  <td>Reactive side effects with cleanup and optional rerun scheduling.</td>
+                  <td>You need to synchronize with logging, storage, DOM, timers, or network side effects.</td>
+                </tr>
+                <tr>
+                  <td><code>batch(fn)</code></td>
+                  <td>Coalesces multiple writes so dependents rerun once.</td>
+                  <td>You update several related signals in one logical transaction.</td>
+                </tr>
+                <tr>
+                  <td><code>untracked(fn)</code></td>
+                  <td>Reads signals without subscribing the current computation.</td>
+                  <td>You need the current value for branching, snapshots, or logging without dependency capture.</td>
+                </tr>
+                <tr>
+                  <td><code>linkedSignal(...)</code></td>
+                  <td>Writable derived state that resets or reconciles whenever its source changes.</td>
+                  <td>You need editable draft state that should still follow a parent signal.</td>
+                </tr>
+                <tr>
+                  <td><code>resource(...)</code></td>
+                  <td>Reactive async loading with cancellation, stale-value retention, and loading helpers.</td>
+                  <td>You fetch or recompute async data from another signal-driven request key.</td>
+                </tr>
+                <tr>
+                  <td><code>optimistic(source)</code></td>
+                  <td>Projects temporary local intent on top of settled state, then commits or rolls back later.</td>
+                  <td>You need optimistic UI for mutations without mutating the base signal early.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="docs-grid" style="margin-top: 26px">
+          <article class="card">
+            <h2>When To Use optimistic()</h2>
+            <div class="stack">
+              <p><code>optimistic()</code> is for mutations where the user should see intent immediately, but the actual source of truth still comes back from the server.</p>
+              <ul class="doc-list">
+                <li>
+                  <strong>Reaction buttons</strong>
+                  Social feeds, likes, bookmarks, clap counters, and vote buttons should feel immediate even if the network takes 600ms.
+                </li>
+                <li>
+                  <strong>Kanban and task reordering</strong>
+                  Move a card instantly in the UI, then commit the new order when the server accepts the mutation.
+                </li>
+                <li>
+                  <strong>Chat and comments</strong>
+                  Insert a message or comment locally as “pending”, then finalize or remove it based on the server result.
+                </li>
+                <li>
+                  <strong>Inline settings toggles</strong>
+                  Feature switches, follow/unfollow, star/unstar, and archive actions should reflect the click immediately while the mutation is in flight.
+                </li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="card">
+            <h2>Why Not Just Mutate Base State?</h2>
+            <div class="stack">
+              <ul class="doc-list">
+                <li>
+                  <strong>Rollback stays cheap</strong>
+                  A failed request just removes the optimistic layer instead of reconstructing previous state manually.
+                </li>
+                <li>
+                  <strong>Server sync still wins</strong>
+                  If the backend pushes fresher data while a mutation is pending, optimistic layers rebase on top of the latest base signal.
+                </li>
+                <li>
+                  <strong>Overlap is predictable</strong>
+                  Several optimistic actions can stack, settle, or fail independently without corrupting the source signal.
+                </li>
+                <li>
+                  <strong>Cleaner mental model</strong>
+                  Base state is committed truth. Optimistic state is temporary local projection.
+                </li>
+              </ul>
+            </div>
+          </article>
+        </section>
+
+        <section class="card" style="margin-top: 26px">
+          <h2>optimistic() Example</h2>
+          <div class="stack">
+            <p>Typical mutation flow from real product code: show the new value immediately, then either commit it into base state or roll it back when the request settles.</p>
+            <div class="console small">const serverLikes = signal(42)
+const optimisticLikes = optimistic(serverLikes)
+
+async function likePost() {
+  const tx = optimisticLikes.apply((value) =&gt; value + 1)
+
+  try {
+    const result = await api.likePost()
+    tx.commit(result.likes)
+  } catch {
+    tx.rollback()
+  }
+}</div>
+            <p class="footer-note">Use <code>resource()</code> for async reads. Use <code>optimistic()</code> for async writes that should feel instant.</p>
+          </div>
+        </section>
+      </div>
     </main>
 
     <script type="module" src="./app.js"></script>

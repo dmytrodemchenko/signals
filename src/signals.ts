@@ -21,6 +21,16 @@ export type WriteSignal<T> = ReadSignal<T> & {
   asReadonly(): ReadSignal<T>;
 };
 
+export type ValueEqualityFn<T> = (a: T, b: T) => boolean;
+
+export interface SignalOptions<T> {
+  /**
+   * Custom equality used by `set()` and `update()` to decide whether a write
+   * should notify dependents. Defaults to `Object.is`.
+   */
+  equal?: ValueEqualityFn<T>;
+}
+
 export interface EffectOptions {
   /**
    * When false, signal writes performed by this effect or its cleanup throw.
@@ -167,13 +177,14 @@ function withSignalWritesAllowed<T>(allowed: boolean, fn: () => T): T {
   }
 }
 
-export function signal<T>(initial: T): WriteSignal<T> {
+export function signal<T>(initial: T, options: SignalOptions<T> = {}): WriteSignal<T> {
   const node: SignalNode<T> = {
     kind: "signal",
     value: initial,
     version: 0,
     subscribers: new Set(),
   };
+  const isEqual = options.equal ?? (Object.is as ValueEqualityFn<T>);
 
   const read = brand<() => T>(function read() {
     trackRead(node as SignalNode<unknown>);
@@ -186,7 +197,7 @@ export function signal<T>(initial: T): WriteSignal<T> {
 
   read.set = (next) => {
     assertSignalWritesAllowed();
-    if (Object.is(next, node.value)) {
+    if (isEqual(next, node.value)) {
       return;
     }
     node.value = next;
@@ -200,7 +211,7 @@ export function signal<T>(initial: T): WriteSignal<T> {
   read.update = (updater) => {
     assertSignalWritesAllowed();
     const next = updater(node.value);
-    if (Object.is(next, node.value)) {
+    if (isEqual(next, node.value)) {
       return;
     }
     node.value = next;

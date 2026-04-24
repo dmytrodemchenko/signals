@@ -1,4 +1,4 @@
-import { batch, computed, effect, isSignal, linkedSignal, resource, signal, untracked } from "../dist/index.js";
+import { batch, computed, effect, isSignal, linkedSignal, optimistic, resource, signal, untracked } from "../dist/index.js";
 
 const linkedConsole = document.querySelector("#linked-console");
 const runTestsButton = document.querySelector("#run-tests");
@@ -6,6 +6,12 @@ const testResults = document.querySelector("#test-results");
 const pokemonSprite = document.querySelector("#pokemon-sprite");
 const pokemonStatus = document.querySelector("#pokemon-status");
 const pokemonConsole = document.querySelector("#pokemon-console");
+const tabButtons = Array.from(document.querySelectorAll("[data-tab-target]"));
+const tabPanels = Array.from(document.querySelectorAll("[data-tab-panel]"));
+const optimisticServer = document.querySelector("#optimistic-server");
+const optimisticOverlayValue = document.querySelector("#optimistic-overlay");
+const optimisticPending = document.querySelector("#optimistic-pending");
+const optimisticConsole = document.querySelector("#optimistic-console");
 
 function assert(condition, message) {
   if (!condition) {
@@ -16,6 +22,28 @@ function assert(condition, message) {
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+function selectTab(name) {
+  for (const button of tabButtons) {
+    const isActive = button.dataset.tabTarget === name;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  }
+
+  for (const panel of tabPanels) {
+    panel.hidden = panel.dataset.tabPanel !== name;
+  }
+
+  runTestsButton.hidden = name !== "demo";
+}
+
+for (const button of tabButtons) {
+  button.addEventListener("click", () => {
+    selectTab(button.dataset.tabTarget);
+  });
+}
+
+selectTab("demo");
 
 const base = signal(100);
 const draft = linkedSignal(() => base());
@@ -86,6 +114,54 @@ document.querySelector("#reload").addEventListener("click", () => {
 
 document.querySelector("#random").addEventListener("click", () => {
   pokemonId.set(Math.floor(Math.random() * 151) + 1);
+});
+
+const serverLikes = signal(42);
+const optimisticLikes = optimistic(serverLikes);
+const optimisticFeed = signal([
+  "Ready. Queue an optimistic like, then let it commit or roll back.",
+]);
+
+function pushOptimisticEvent(message) {
+  optimisticFeed.update((entries) => [message, ...entries].slice(0, 8));
+}
+
+function scheduleOptimisticLike({ fail = false } = {}) {
+  const tx = optimisticLikes.apply((value) => value + 1);
+  pushOptimisticEvent(`tx#${tx.id}: queued +1 locally`);
+
+  sleep(fail ? 1300 : 900).then(() => {
+    if (fail) {
+      tx.rollback();
+      pushOptimisticEvent(`tx#${tx.id}: server rejected, rolled back`);
+      return;
+    }
+
+    tx.commit((value) => value + 1);
+    pushOptimisticEvent(`tx#${tx.id}: server committed +1 to base`);
+  });
+}
+
+effect(() => {
+  optimisticServer.textContent = String(serverLikes());
+  optimisticOverlayValue.textContent = String(optimisticLikes());
+  optimisticPending.textContent = String(optimisticLikes.pendingCount());
+  optimisticConsole.textContent =
+    `hasPending() = ${optimisticLikes.hasPending()}\n\n` +
+    optimisticFeed().join("\n");
+});
+
+document.querySelector("#optimistic-like").addEventListener("click", () => {
+  scheduleOptimisticLike();
+});
+
+document.querySelector("#optimistic-fail").addEventListener("click", () => {
+  scheduleOptimisticLike({ fail: true });
+});
+
+document.querySelector("#optimistic-sync").addEventListener("click", () => {
+  serverLikes.update((value) => value + 5);
+  pushOptimisticEvent("server sync: base updated by +5");
 });
 
 async function runDemoTests() {
@@ -165,6 +241,21 @@ async function runDemoTests() {
     record("isSignal narrows branded signal functions", true);
   } catch (error) {
     record("isSignal narrows branded signal functions", false, error.message);
+  }
+
+  try {
+    const committed = signal(10);
+    const projected = optimistic(committed);
+    const tx = projected.apply((value) => value + 2);
+
+    assert(projected() === 12, "optimistic layer should apply immediately");
+    committed.set(20);
+    assert(projected() === 22, "optimistic value should rebase on source updates");
+    tx.commit((value) => value + 2);
+    assert(committed() === 22, "commit should update the base signal");
+    record("optimistic rebases pending layers and commits cleanly", true);
+  } catch (error) {
+    record("optimistic rebases pending layers and commits cleanly", false, error.message);
   }
 
   try {
