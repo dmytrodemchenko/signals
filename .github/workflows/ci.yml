@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - "**"
   pull_request:
 
 jobs:
@@ -28,3 +28,6 @@ jobs:
 
       - name: Build package
         run: npm run build
+
+      - name: Check demo entry
+        run: node --check demo/app.js
