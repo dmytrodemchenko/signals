@@ -23,7 +23,9 @@ export interface Resource<T> {
   value: ReadSignal<T | undefined>;
   error: ReadSignal<unknown>;
   status: ReadSignal<ResourceStatus>;
+  hasValue: ReadSignal<boolean>;
   isLoading: ReadSignal<boolean>;
+  isRefreshing: ReadSignal<boolean>;
   set(value: T | undefined): void;
   update(updater: (v: T | undefined) => T | undefined): void;
   reload(): void;
@@ -40,6 +42,7 @@ export function resource<R, T>(options: ResourceOptions<R, T>): Resource<T> {
   const value = signal<T | undefined>(undefined);
   const error = signal<unknown>(undefined);
   const status = signal<ResourceStatus>("idle");
+  const hasValue = signal(false);
   const reloadTick = signal(0);
 
   let currentController: AbortController | null = null;
@@ -74,6 +77,7 @@ export function resource<R, T>(options: ResourceOptions<R, T>): Resource<T> {
           return;
         }
         value.set(result);
+        hasValue.set(true);
         status.set("resolved");
       },
       (err) => {
@@ -89,14 +93,23 @@ export function resource<R, T>(options: ResourceOptions<R, T>): Resource<T> {
   });
 
   const isLoading = computed(() => status() === "loading");
+  const isRefreshing = computed(() => isLoading() && hasValue());
 
   return {
     value,
     error,
     status,
+    hasValue,
     isLoading,
-    set: (v) => value.set(v),
-    update: (fn) => value.update(fn),
+    isRefreshing,
+    set: (v) => {
+      value.set(v);
+      hasValue.set(true);
+    },
+    update: (fn) => {
+      value.update(fn);
+      hasValue.set(true);
+    },
     reload: () => reloadTick.update((n) => n + 1),
     destroy: () => {
       currentController?.abort();

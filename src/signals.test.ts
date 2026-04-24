@@ -267,13 +267,22 @@ export async function runAsyncTests(): Promise<TestResult[]> {
         return `data-${request}`;
       },
     });
+    assert(r.hasValue() === false, "starts without value");
     assert(r.status() === "loading", "starts loading");
+    assert(r.isLoading() === true, "isLoading tracks initial load");
+    assert(r.isRefreshing() === false, "initial load is not refreshing");
     await wait(40);
     assert(r.status() === "resolved", `resolves; got ${r.status()}`);
     assert(r.value() === "data-1", `value=${r.value()}`);
+    assert(r.hasValue() === true, "hasValue becomes true after resolve");
+    assert(r.isLoading() === false, "stops loading after resolve");
     id.set(2);
+    assert(r.status() === "loading", "request change starts reload");
+    assert(r.value() === "data-1", "preserves previous value while reloading");
+    assert(r.isRefreshing() === true, "reload with value is refreshing");
     await wait(40);
     assert(r.value() === "data-2", "reacts to request change");
+    assert(r.isRefreshing() === false, "refreshing ends after resolve");
     r.destroy();
     results.push({ name: "resource loads and reacts to request", passed: true });
   } catch (e) {
@@ -295,6 +304,8 @@ export async function runAsyncTests(): Promise<TestResult[]> {
     await wait(20);
     assert(r.status() === "error", `status=${r.status()}`);
     assert((r.error() as Error).message === "boom", "captures error");
+    assert(r.hasValue() === false, "failed initial load does not create a value");
+    assert(r.isRefreshing() === false, "error after empty load is not refreshing");
     r.destroy();
     results.push({ name: "resource captures errors", passed: true });
   } catch (e) {
@@ -335,6 +346,65 @@ export async function runAsyncTests(): Promise<TestResult[]> {
   } catch (e) {
     results.push({
       name: "resource aborts stale requests",
+      passed: false,
+      error: (e as Error).message,
+    });
+  }
+
+  try {
+    const id = signal(1);
+    let shouldFail = false;
+    const r = resource({
+      request: () => id(),
+      loader: async ({ request }) => {
+        await wait(10);
+        if (shouldFail) {
+          throw new Error(`boom-${request}`);
+        }
+        return `data-${request}`;
+      },
+    });
+
+    await wait(30);
+    assert(r.value() === "data-1", `expected initial value, got ${r.value()}`);
+    assert(r.hasValue() === true, "resolved value should be present");
+
+    shouldFail = true;
+    id.set(2);
+    assert(r.isRefreshing() === true, "reload should expose refreshing while stale value is kept");
+    assert(r.value() === "data-1", "stale value should remain during failing reload");
+    await wait(30);
+
+    assert(r.status() === "error", `expected error status, got ${r.status()}`);
+    assert(r.value() === "data-1", "stale value should remain after failed reload");
+    assert(r.hasValue() === true, "failed refresh should keep hasValue true");
+    assert((r.error() as Error).message === "boom-2", "captures refresh error");
+    assert(r.isRefreshing() === false, "refreshing ends after failed reload");
+    r.destroy();
+    results.push({ name: "resource keeps stale value during and after failed refresh", passed: true });
+  } catch (e) {
+    results.push({
+      name: "resource keeps stale value during and after failed refresh",
+      passed: false,
+      error: (e as Error).message,
+    });
+  }
+
+  try {
+    const r = resource<undefined, string>({
+      request: () => undefined,
+      loader: async () => "",
+    });
+
+    assert(r.hasValue() === false, "manual seed starts empty");
+    r.set(undefined);
+    assert(r.hasValue() === true, "manual set marks resource as having a value");
+    assert(r.isRefreshing() === false, "manual seed is not refreshing");
+    r.destroy();
+    results.push({ name: "resource hasValue tracks manual writes independently of value contents", passed: true });
+  } catch (e) {
+    results.push({
+      name: "resource hasValue tracks manual writes independently of value contents",
       passed: false,
       error: (e as Error).message,
     });

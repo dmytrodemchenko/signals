@@ -71,6 +71,17 @@ const user = resource({
     return response.json();
   },
 });
+
+effect(() => {
+  if (user.isLoading() && !user.hasValue()) {
+    console.log("Loading initial user...");
+    return;
+  }
+
+  if (user.isRefreshing()) {
+    console.log("Refreshing user while keeping stale data visible");
+  }
+});
 ```
 
 ## API
@@ -86,6 +97,12 @@ The package exports:
 - `isSignal`
 - `linkedSignal`
 - `resource`
+
+### `resource` state helpers
+
+- `hasValue()` is `true` after the resource has produced or been assigned a value, even if that value is `undefined`.
+- `isLoading()` is `true` whenever a request is in flight.
+- `isRefreshing()` is `true` when a request is in flight and the resource is still holding a previous value.
 
 ### `effect` options
 
