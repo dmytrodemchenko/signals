@@ -402,7 +402,18 @@ function runEffect(node: EffectNode) {
 export function batch<T>(fn: () => T): T {
   batchDepth++;
   try {
-    return fn();
+    const result = fn();
+    // Warn if the developer passed an async function.
+    // Batching relies on synchronous global state (batchDepth),
+    // so async boundaries will break the batching mechanism.
+    if (result != null && typeof result === 'object' && typeof (result as any).then === 'function') {
+      console.warn(
+        '[signals] Warning: batch() was called with an async function. ' +
+        'Batching is strictly synchronous. Any signal mutations after an "await" ' +
+        'will not be batched.'
+      );
+    }
+    return result;
   } finally {
     batchDepth--;
     if (batchDepth === 0) {

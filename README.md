@@ -165,14 +165,14 @@ In a backend context, you often need to manage state *at a specific point in tim
 If you are building a WebSocket gateway in NestJS, you need to manage complex, rapidly changing room or game state. Signals ensure that derived state is calculated efficiently and side-effects (like broadcasting to players) only happen when the underlying data *actually* changes.
 
 ```typescript
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { signal, computed, effect } from '@demchenko.di/signals';
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server } from 'socket.io';
 
 @Injectable()
 @WebSocketGateway()
-export class GameRoomService {
+export class GameRoomService implements OnModuleDestroy {
   @WebSocketServer() server: Server;
 
   private players = signal<Record<string, { name: string; score: number }>>({});
@@ -185,8 +185,11 @@ export class GameRoomService {
     return Object.values(p).sort((a, b) => b.score - a.score)[0]?.name;
   });
 
+  private stopEffect: () => void;
+  private timer: NodeJS.Timeout;
+
   constructor() {
-    effect(() => {
+    this.stopEffect = effect(() => {
       if (this.isGameOver()) {
         this.server.emit('game_over', { 
           winner: this.leader(),
@@ -195,9 +198,14 @@ export class GameRoomService {
       }
     });
 
-    setInterval(() => {
+    this.timer = setInterval(() => {
       this.timeRemaining.update(time => Math.max(0, time - 1));
     }, 1000);
+  }
+
+  onModuleDestroy() {
+    this.stopEffect();
+    clearInterval(this.timer);
   }
 
   addScore(playerId: string, points: number) {
@@ -217,14 +225,14 @@ export class GameRoomService {
 Instead of writing complex polling loops, you can combine signals with MongoDB Change Streams. When a document updates in the database, the signal updates, dependent computations re-run lazily, and side-effects trigger automatically. Other NestJS services simply read the `computed` signals synchronously and always get the freshest value.
 
 ```typescript
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { signal, computed, effect } from '@demchenko.di/signals';
 import { Config, ConfigDocument } from './config.schema';
 
 @Injectable()
-export class ConfigService {
+export class ConfigService implements OnModuleDestroy {
   private readonly logger = new Logger(ConfigService.name);
 
   private rawConfig = signal({ maintenanceMode: false, rateLimit: 100 });
@@ -232,10 +240,12 @@ export class ConfigService {
   public isMaintenanceMode = computed(() => this.rawConfig().maintenanceMode);
   public currentRateLimit = computed(() => this.rawConfig().rateLimit);
 
+  private stopEffect: () => void;
+
   constructor(
     @InjectModel(Config.name) private configModel: Model<ConfigDocument>
   ) {
-    effect(() => {
+    this.stopEffect = effect(() => {
       if (this.isMaintenanceMode()) {
         this.logger.warn('⚠️ SYSTEM ENTERED MAINTENANCE MODE ⚠️');
       } else {
@@ -244,6 +254,10 @@ export class ConfigService {
     });
 
     this.watchDatabaseChanges();
+  }
+
+  onModuleDestroy() {
+    this.stopEffect();
   }
 
   private async watchDatabaseChanges() {
@@ -306,6 +320,34 @@ The package exports:
 - `linkedSignal`
 - `optimistic`
 - `resource`
+
+### `batch()` and Async Execution
+
+**Important:** `batch()` is strictly synchronous. It works by temporarily pausing effect execution and flushing them once the provided function completes. 
+
+You should **never** use `await` inside a `batch()` block.
+
+**❌ Incorrect:**
+```typescript
+batch(async () => {
+  state.set('loading');
+  await fetch('/api/data'); // ⚠️ The batch ends immediately here!
+  state.set('success');     // This executes outside the batch.
+});
+```
+
+**✅ Correct:**
+```typescript
+state.set('loading');
+await fetch('/api/data');
+
+// Batch only the synchronous mutations
+batch(() => {
+  state.set('success');
+  data.set(newData);
+});
+```
+*Note: The library will now throw a `console.warn` if you accidentally return a Promise from inside a `batch()`.*
 
 ### `optimistic` helpers
 
