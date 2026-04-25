@@ -38,9 +38,7 @@ jobs:
       - name: Prepare Pages artifact
         run: |
           mkdir -p .site/demo .site/dist
-          cp demo/index.html .site/demo/index.html
-          cp demo/app.js .site/demo/app.js
-          cp demo/styles.css .site/demo/styles.css
+          cp -R demo/. .site/demo/
           cp -R dist/. .site/dist/
           cat <<'EOF' > .site/index.html
           <!doctype html>
