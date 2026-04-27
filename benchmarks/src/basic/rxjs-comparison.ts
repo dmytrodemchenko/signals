@@ -1,9 +1,9 @@
 import { Bench } from 'tinybench';
 import { BehaviorSubject, combineLatest, map } from 'rxjs';
-import { signal, computed } from '../../../src/signals.js';
+import { signal, computed } from '../../../src/index.js';
 
 export async function runSignalVsBehaviorSubject() {
-  const bench = new Bench({ time: 500 });
+  const bench = new Bench({ time: 500, warmupTime: 500, warmupIterations: 100 });
 
   console.log('--- Test 1: Basic Reads & Writes ---');
 
@@ -14,7 +14,7 @@ export async function runSignalVsBehaviorSubject() {
       sub.next(2);
       const val = sub.getValue();
     })
-    .add('Sigil: signal() + set()', () => {
+    .add('@demchenko.di/signals: signal() + set()', () => {
       const s = signal(0);
       s.set(1);
       s.set(2);
@@ -27,9 +27,20 @@ export async function runSignalVsBehaviorSubject() {
 }
 
 export async function runComputedVsCombineLatest() {
-  const bench = new Bench({ time: 1000 });
+  const bench = new Bench({ time: 1000, warmupTime: 500, warmupIterations: 100 });
 
   console.log('\n--- Test 2: Diamond Problem (Derived State) ---');
+
+  // Profiling single run for signals
+  console.log('Profiling single run for @demchenko.di/signals:');
+  const profA = signal(1);
+  const profB = computed(() => profA() * 2);
+  const profC = computed(() => profA() * 3);
+  const profD = computed(() => profB() + profC());
+  const start = performance.now();
+  profA.set(2);
+  profD();
+  console.log('Single run time:', performance.now() - start, 'ms');
 
   bench
     .add('RxJS: BehaviorSubject + combineLatest', () => {
@@ -57,7 +68,7 @@ export async function runComputedVsCombineLatest() {
 
       sub.unsubscribe();
     })
-    .add('Sigil: signal + computed', () => {
+    .add('@demchenko.di/signals: signal + computed', () => {
       const a = signal(1);
       const b = computed(() => a() * 2);
       const c = computed(() => a() * 3);

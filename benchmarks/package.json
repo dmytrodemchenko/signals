@@ -1,0 +1,18 @@
+{
+  "name": "signals-benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Performance benchmarks for the signals library against RxJS and competitors",
+  "type": "module",
+  "scripts": {
+    "start": "tsx runner.ts"
+  },
+  "dependencies": {
+    "@demchenko.di/signals": "^2.0.3",
+    "@preact/signals-core": "^1.8.0",
+    "alien-signals": "^0.4.14",
+    "rxjs": "^7.8.1",
+    "tinybench": "^2.9.0",
+    "tsx": "^4.19.2"
+  }
+}
