@@ -27,8 +27,8 @@ npm install @demchenko.di/signals
 ## Benchmarks
 
 **Performance Highlights:**
-- ✅ **1.4x faster than RxJS** on diamond dependency graphs (glitch-free)
-- ✅ **1.2x faster than RxJS** for NestJS WebSocket simulation (1000 concurrent effects)
+- ✅ **1.5x faster than RxJS** on diamond dependency graphs (glitch-free)
+- ✅ **1.4x faster than RxJS** for NestJS WebSocket simulation (1000 concurrent effects)
 - ✅ **Faster than @preact/signals-core** on heavy graph updates
 
 > Measured on Node.js v24.15.0 · Apple Silicon · April 2026
@@ -67,6 +67,10 @@ Simulates 1000 concurrent WebSocket connections reacting to a single signal upda
 |---|---|
 | RxJS (1000 Subscriptions) | 39,527 |
 | **@demchenko.di/signals** (1000 Effects) | **47,944** ✅ 1.2× faster |
+
+### Architecture
+
+The engine uses a **doubly-linked list** of `Link` nodes for dependency tracking instead of `Set`/`Map`. Each `Link` exists in two lists simultaneously (the producer's subscriber list and the consumer's dependency list), enabling O(1) subscribe/unsubscribe with **near-zero GC pressure**. During re-evaluation, existing link nodes are **reused** when the dependency graph is stable — making steady-state updates allocation-free.
 
 ## Usage
 
