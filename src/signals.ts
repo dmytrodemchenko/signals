@@ -1,9 +1,5 @@
 /**
- * Zero-dependency reactive Signals.
- *
- * Push-pull engine: writes mark dependents dirty (push); reads validate
- * lazily by walking dependency versions (pull). Effects are scheduled and
- * flushed once per microtask / batch end, so updates are glitch-free.
+ * Zero-dependency reactive Signals with linked-list dependency tracking.
  */
 
 const SIGNAL_BRAND: unique symbol = Symbol('sigil.signal');
@@ -26,28 +22,13 @@ export type WriteSignal<T> = ReadSignal<T> & {
 export type ValueEqualityFn<T> = (a: T, b: T) => boolean;
 
 export interface SignalOptions<T> {
-  /**
-   * Custom equality used by `set()` and `update()` to decide whether a write
-   * should notify dependents. Defaults to `Object.is`.
-   */
+  /** Custom equality for `set()` / `update()`. Defaults to `Object.is`. */
   equal?: ValueEqualityFn<T>;
 }
 
 export interface EffectOptions {
-  /**
-   * When false, signal writes performed by this effect or its cleanup throw.
-   * Defaults to true.
-   */
   allowSignalWrites?: boolean;
-  /**
-   * Compatibility option for owner-scoped effect APIs. Effects in this library
-   * are always disposed manually via the function returned from `effect()`.
-   */
   manualCleanup?: boolean;
-  /**
-   * Custom rerun scheduler. The initial run is still synchronous; the
-   * scheduler only controls invalidated reruns.
-   */
   scheduler?: (run: () => void) => void;
 }
 
@@ -59,71 +40,185 @@ export const NodeState = {
 
 export type NodeState = (typeof NodeState)[keyof typeof NodeState];
 
-type Subscriber = ComputedNode<unknown> | EffectNode;
-type Producer = SignalNode<unknown> | ComputedNode<unknown>;
+const NodeKind = {
+  Signal: 'signal',
+  Computed: 'computed',
+  Effect: 'effect',
+} as const;
+
+type NodeKind = (typeof NodeKind)[keyof typeof NodeKind];
+
+const CLEAN = 0;
+const PENDING = 1;
+const DIRTY = 2;
+const COMPUTING = 4;
+
+import { isFunction, isThenable } from './utils.js';
+
+interface Link {
+  dep: ProducerNode;
+  sub: SubscriberNode;
+  version: number;
+  prevSub: Link | undefined;
+  nextSub: Link | undefined;
+  prevDep: Link | undefined;
+  nextDep: Link | undefined;
+}
+
+type SubscriberNode = ComputedNode<unknown> | EffectNode;
+type ProducerNode = SignalNode<unknown> | ComputedNode<unknown>;
 
 interface SignalNode<T> {
-  kind: 'signal';
+  kind: typeof NodeKind.Signal;
   value: T;
   version: number;
-  subscribers: Set<Subscriber>;
+  subs: Link | undefined;
+  subsTail: Link | undefined;
 }
 
 interface ComputedNode<T> {
-  kind: 'computed';
+  kind: typeof NodeKind.Computed;
   fn: () => T;
   value: T | undefined;
   version: number;
-  state: NodeState;
-  computing: boolean;
-  dependencies: Map<Producer, number>;
-  subscribers: Set<Subscriber>;
+  flags: number;
+  deps: Link | undefined;
+  depsTail: Link | undefined;
+  subs: Link | undefined;
+  subsTail: Link | undefined;
 }
 
 interface EffectNode {
-  kind: 'effect';
+  kind: typeof NodeKind.Effect;
   fn: () => void | (() => void);
   cleanup: void | (() => void);
-  dependencies: Map<Producer, number>;
-  state: NodeState;
+  flags: number;
+  deps: Link | undefined;
+  depsTail: Link | undefined;
   scheduled: boolean;
   disposed: boolean;
   allowSignalWrites: boolean;
   scheduler?: (run: () => void) => void;
+  nextPending: EffectNode | null;
 }
 
-let activeSubscriber: Subscriber | null = null;
+let activeSubscriber: SubscriberNode | null = null;
 let activeSignalWritesAllowed = true;
 let batchDepth = 0;
-const pendingEffects = new Set<EffectNode>();
+let pendingHead: EffectNode | null = null;
+let pendingTail: EffectNode | null = null;
 
 function brand<T extends (...args: never[]) => unknown>(target: T): T & SignalBrand {
   Object.defineProperty(target, SIGNAL_BRAND, { value: true });
   return target as T & SignalBrand;
 }
 
-function scheduleEffect(e: EffectNode) {
+function linkDepSub(dep: ProducerNode, sub: SubscriberNode): void {
+  const prevDep = sub.depsTail;
+
+  if (prevDep !== undefined && prevDep.dep === dep) {
+    return;
+  }
+
+  const nextDep = prevDep !== undefined ? prevDep.nextDep : sub.deps;
+  if (nextDep !== undefined && nextDep.dep === dep) {
+    nextDep.version = dep.version;
+    sub.depsTail = nextDep;
+    return;
+  }
+
+  const prevSub = dep.subsTail;
+  const newLink: Link = {
+    dep,
+    sub,
+    version: dep.version,
+    prevSub,
+    nextSub: undefined,
+    prevDep,
+    nextDep,
+  };
+
+  if (nextDep !== undefined) {
+    nextDep.prevDep = newLink;
+  }
+  if (prevDep !== undefined) {
+    prevDep.nextDep = newLink;
+  } else {
+    sub.deps = newLink;
+  }
+  sub.depsTail = newLink;
+
+  if (prevSub !== undefined) {
+    prevSub.nextSub = newLink;
+  } else {
+    dep.subs = newLink;
+  }
+  dep.subsTail = newLink;
+}
+
+function unlinkFromSubs(link: Link): void {
+  const { dep, prevSub, nextSub } = link;
+
+  if (prevSub !== undefined) {
+    prevSub.nextSub = nextSub;
+  } else {
+    dep.subs = nextSub;
+  }
+
+  if (nextSub !== undefined) {
+    nextSub.prevSub = prevSub;
+  } else {
+    dep.subsTail = prevSub;
+  }
+}
+
+function purgeDeps(sub: SubscriberNode): void {
+  const tail = sub.depsTail;
+  let link = tail !== undefined ? tail.nextDep : sub.deps;
+
+  while (link !== undefined) {
+    const next = link.nextDep;
+    unlinkFromSubs(link);
+    link = next;
+  }
+
+  if (tail !== undefined) {
+    tail.nextDep = undefined;
+  } else {
+    sub.deps = undefined;
+  }
+}
+
+function scheduleEffect(e: EffectNode): void {
   if (e.disposed || e.scheduled) {
     return;
   }
   e.scheduled = true;
-  pendingEffects.add(e);
+  e.nextPending = null;
+  if (pendingTail !== null) {
+    pendingTail.nextPending = e;
+  } else {
+    pendingHead = e;
+  }
+  pendingTail = e;
   if (batchDepth === 0) {
     flushEffects();
   }
 }
 
-function flushEffects() {
-  while (pendingEffects.size > 0) {
-    const batch = Array.from(pendingEffects);
-    pendingEffects.clear();
-    for (const e of batch) {
-      dispatchEffect(e);
+function flushEffects(): void {
+  while (pendingHead !== null) {
+    const e = pendingHead;
+    pendingHead = e.nextPending;
+    if (pendingHead === null) {
+      pendingTail = null;
     }
+    e.nextPending = null;
+    dispatchEffect(e);
   }
 }
 
-function dispatchEffect(node: EffectNode) {
+function dispatchEffect(node: EffectNode): void {
   if (node.disposed || !node.scheduled) {
     return;
   }
@@ -144,44 +239,54 @@ function dispatchEffect(node: EffectNode) {
   runEffect(node);
 }
 
-function trackRead(node: Producer) {
-  if (!activeSubscriber) {
+function trackRead(node: ProducerNode): void {
+  if (activeSubscriber === null) {
     return;
   }
-  activeSubscriber.dependencies.set(node, node.version);
-  node.subscribers.add(activeSubscriber);
+  linkDepSub(node, activeSubscriber);
 }
 
-function notifySubscribers(node: Producer) {
-  for (const sub of Array.from(node.subscribers)) {
-    notifySubscriber(sub, node.kind === 'signal' ? NodeState.Dirty : NodeState.Check);
+function notifySubscribers(node: ProducerNode): void {
+  let link = node.subs;
+  while (link !== undefined) {
+    notifySubscriber(
+      link.sub,
+      node.kind === NodeKind.Signal ? DIRTY : PENDING,
+    );
+    link = link.nextSub;
   }
 }
 
-function notifySubscriber(sub: Subscriber, state: NodeState) {
-  if (sub.state >= state) {
+function notifySubscriber(sub: SubscriberNode, flag: number): void {
+  if (sub.flags >= flag) {
     return;
   }
 
-  sub.state = state;
+  sub.flags = flag;
 
-  if (sub.kind === 'computed') {
-    for (const dependent of Array.from(sub.subscribers)) {
-      notifySubscriber(dependent, NodeState.Check);
+  if (sub.kind === NodeKind.Computed) {
+    let link = sub.subs;
+    while (link !== undefined) {
+      notifySubscriber(link.sub, PENDING);
+      link = link.nextSub;
     }
   } else {
     scheduleEffect(sub);
   }
 }
 
-function clearDependencies(sub: ComputedNode<unknown> | EffectNode) {
-  for (const dep of sub.dependencies.keys()) {
-    dep.subscribers.delete(sub);
+function clearDependencies(sub: SubscriberNode): void {
+  let link = sub.deps;
+  while (link !== undefined) {
+    const next = link.nextDep;
+    unlinkFromSubs(link);
+    link = next;
   }
-  sub.dependencies.clear();
+  sub.deps = undefined;
+  sub.depsTail = undefined;
 }
 
-function assertSignalWritesAllowed() {
+function assertSignalWritesAllowed(): void {
   if (!activeSignalWritesAllowed) {
     throw new Error('Signal writes are not allowed in this effect.');
   }
@@ -199,10 +304,11 @@ function withSignalWritesAllowed<T>(allowed: boolean, fn: () => T): T {
 
 export function signal<T>(initial: T, options: SignalOptions<T> = {}): WriteSignal<T> {
   const node: SignalNode<T> = {
-    kind: 'signal',
+    kind: NodeKind.Signal,
     value: initial,
     version: 0,
-    subscribers: new Set(),
+    subs: undefined,
+    subsTail: undefined,
   };
   const isEqual = options.equal ?? (Object.is as ValueEqualityFn<T>);
 
@@ -259,30 +365,31 @@ export function signal<T>(initial: T, options: SignalOptions<T> = {}): WriteSign
 
 export function computed<T>(fn: () => T): ReadSignal<T> {
   const node: ComputedNode<T> = {
-    kind: 'computed',
+    kind: NodeKind.Computed,
     fn,
     value: undefined,
     version: 0,
-    state: NodeState.Dirty,
-    computing: false,
-    dependencies: new Map(),
-    subscribers: new Set(),
+    flags: DIRTY,
+    deps: undefined,
+    depsTail: undefined,
+    subs: undefined,
+    subsTail: undefined,
   };
 
   return brand<() => T>(() => {
-    if (node.computing) {
+    if (node.flags & COMPUTING) {
       throw new Error('Detected cycle in computed signal.');
     }
 
-    if (node.state === NodeState.Check) {
+    if (node.flags === PENDING) {
       if (depsAreFresh(node)) {
-        node.state = NodeState.Clean;
+        node.flags = CLEAN;
       } else {
-        node.state = NodeState.Dirty;
+        node.flags = DIRTY;
       }
     }
 
-    if (node.state === NodeState.Dirty) {
+    if (node.flags & DIRTY) {
       recompute(node);
     }
 
@@ -292,33 +399,36 @@ export function computed<T>(fn: () => T): ReadSignal<T> {
 }
 
 function depsAreFresh(node: ComputedNode<unknown> | EffectNode): boolean {
-  for (const [dep, seenVersion] of node.dependencies) {
-    if (dep.kind === 'computed') {
-      if (dep.state === NodeState.Check) {
+  let link = node.deps;
+  while (link !== undefined) {
+    const dep = link.dep;
+    if (dep.kind === NodeKind.Computed) {
+      if (dep.flags === PENDING) {
         if (depsAreFresh(dep)) {
-          dep.state = NodeState.Clean;
+          dep.flags = CLEAN;
         } else {
-          dep.state = NodeState.Dirty;
+          dep.flags = DIRTY;
         }
       }
 
-      if (dep.state === NodeState.Dirty) {
+      if (dep.flags & DIRTY) {
         recompute(dep);
       }
     }
 
-    if (dep.version !== seenVersion) {
+    if (dep.version !== link.version) {
       return false;
     }
+    link = link.nextDep;
   }
   return true;
 }
 
-function recompute<T>(node: ComputedNode<T>) {
+function recompute<T>(node: ComputedNode<T>): void {
   const prev = activeSubscriber;
-  clearDependencies(node);
+  node.depsTail = undefined;
   activeSubscriber = node;
-  node.computing = true;
+  node.flags = COMPUTING;
   try {
     const next = node.fn();
     if (node.version === 0 || !Object.is(next, node.value)) {
@@ -326,23 +436,25 @@ function recompute<T>(node: ComputedNode<T>) {
       node.version++;
     }
   } finally {
-    node.computing = false;
-    node.state = NodeState.Clean;
+    node.flags = CLEAN;
     activeSubscriber = prev;
+    purgeDeps(node);
   }
 }
 
 export function effect(fn: () => void | (() => void), options: EffectOptions = {}): () => void {
   const node: EffectNode = {
-    kind: 'effect',
+    kind: NodeKind.Effect,
     fn,
     cleanup: undefined,
-    dependencies: new Map(),
-    state: NodeState.Dirty,
+    flags: DIRTY,
+    deps: undefined,
+    depsTail: undefined,
     scheduled: false,
     disposed: false,
     allowSignalWrites: options.allowSignalWrites ?? true,
     scheduler: options.scheduler,
+    nextPending: null,
   };
   runEffect(node);
   return () => {
@@ -350,12 +462,36 @@ export function effect(fn: () => void | (() => void), options: EffectOptions = {
     node.disposed = true;
     runCleanup(node);
     clearDependencies(node);
-    pendingEffects.delete(node);
+    removeFromPendingQueue(node);
   };
 }
 
-function runCleanup(node: EffectNode) {
-  if (typeof node.cleanup !== 'function') {
+function removeFromPendingQueue(node: EffectNode): void {
+  if (!node.scheduled) return;
+  node.scheduled = false;
+
+  let prev: EffectNode | null = null;
+  let cur = pendingHead;
+  while (cur !== null) {
+    if (cur === node) {
+      if (prev !== null) {
+        prev.nextPending = cur.nextPending;
+      } else {
+        pendingHead = cur.nextPending;
+      }
+      if (cur === pendingTail) {
+        pendingTail = prev;
+      }
+      cur.nextPending = null;
+      return;
+    }
+    prev = cur;
+    cur = cur.nextPending;
+  }
+}
+
+function runCleanup(node: EffectNode): void {
+  if (!isFunction(node.cleanup)) {
     return;
   }
   try {
@@ -366,36 +502,37 @@ function runCleanup(node: EffectNode) {
   node.cleanup = undefined;
 }
 
-function runEffect(node: EffectNode) {
-  if (node.state === NodeState.Clean) {
+function runEffect(node: EffectNode): void {
+  if (node.flags === CLEAN) {
     return;
   }
 
-  if (node.state === NodeState.Check) {
+  if (node.flags === PENDING) {
     if (depsAreFresh(node)) {
-      node.state = NodeState.Clean;
+      node.flags = CLEAN;
       return;
     } else {
-      node.state = NodeState.Dirty;
+      node.flags = DIRTY;
     }
   }
 
-  if (node.state !== NodeState.Dirty) {
+  if (!(node.flags & DIRTY)) {
     return;
   }
 
   runCleanup(node);
   const prev = activeSubscriber;
-  clearDependencies(node);
+  node.depsTail = undefined;
   activeSubscriber = node;
   try {
     const result = withSignalWritesAllowed(node.allowSignalWrites, () => node.fn());
-    if (typeof result === 'function') {
+    if (isFunction(result)) {
       node.cleanup = result;
     }
   } finally {
-    node.state = NodeState.Clean;
+    node.flags = CLEAN;
     activeSubscriber = prev;
+    purgeDeps(node);
   }
 }
 
@@ -403,10 +540,7 @@ export function batch<T>(fn: () => T): T {
   batchDepth++;
   try {
     const result = fn();
-    // Warn if the developer passed an async function.
-    // Batching relies on synchronous global state (batchDepth),
-    // so async boundaries will break the batching mechanism.
-    if (result != null && typeof result === 'object' && typeof (result as any).then === 'function') {
+    if (isThenable(result)) {
       console.warn(
         '[signals] Warning: batch() was called with an async function. ' +
         'Batching is strictly synchronous. Any signal mutations after an "await" ' +
@@ -433,5 +567,5 @@ export function untracked<T>(fn: () => T): T {
 }
 
 export function isSignal<T = unknown>(value: unknown): value is ReadSignal<T> {
-  return typeof value === 'function' && SIGNAL_BRAND in value;
+  return isFunction(value) && SIGNAL_BRAND in value;
 }

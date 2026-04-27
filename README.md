@@ -24,6 +24,54 @@ npm install @demchenko.di/signals
 - No runtime dependencies
 - Typed public API with generated `.d.ts` files
 
+## Benchmarks
+
+**Performance Highlights:**
+- ✅ **1.4x faster than RxJS** on diamond dependency graphs (glitch-free)
+- ✅ **1.2x faster than RxJS** for NestJS WebSocket simulation (1000 concurrent effects)
+- ✅ **Faster than @preact/signals-core** on heavy graph updates
+
+> Measured on Node.js v24.15.0 · Apple Silicon · April 2026
+> 
+> Source: [`benchmarks/`](./benchmarks) — run `cd benchmarks && npm start` to reproduce.
+
+### 1. Basic Reads & Writes
+
+| Library | ops/sec |
+|---|---|
+| RxJS `BehaviorSubject` + `getValue()` | 16,662,329 |
+| **@demchenko.di/signals** `signal()` + `set()` | **4,715,875** |
+
+### 2. Diamond Problem (Derived State)
+
+| Library | ops/sec |
+|---|---|
+| RxJS `BehaviorSubject` + `combineLatest` | 871,323 |
+| **@demchenko.di/signals** `signal` + `computed` | **1,228,103** ✅ 1.4× faster |
+
+### 3. Dependency Graph Update (vs Competitors)
+
+The main benchmark: create a diamond-shaped dependency graph (`a → b, c → d`) and batch 100 updates through it.
+
+| Library | ops/sec | vs us |
+|---|---|---|
+| `@preact/signals-core` | 1,677,734 | 1.26× slower |
+| `alien-signals` | 2,503,989 | 1.19× faster |
+| **@demchenko.di/signals** | **2,105,284** | — |
+
+### 4. NestJS WebSocket Simulation (1000 Subscriptions)
+
+Simulates 1000 concurrent WebSocket connections reacting to a single signal update — a realistic server-side workload.
+
+| Library | ops/sec |
+|---|---|
+| RxJS (1000 Subscriptions) | 39,527 |
+| **@demchenko.di/signals** (1000 Effects) | **47,944** ✅ 1.2× faster |
+
+### Architecture
+
+The engine uses a **doubly-linked list** of `Link` nodes for dependency tracking instead of `Set`/`Map`. Each `Link` exists in two lists simultaneously (the producer's subscriber list and the consumer's dependency list), enabling O(1) subscribe/unsubscribe with **near-zero GC pressure**. During re-evaluation, existing link nodes are **reused** when the dependency graph is stable — making steady-state updates allocation-free.
+
 ## Usage
 
 ```ts

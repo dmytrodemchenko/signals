@@ -59,9 +59,7 @@ export function initResourceDemo() {
     pokemonResource.reload();
   });
 
-  document.querySelector("#random")?.addEventListener("click", () => {
-    pokemonId.set(Math.floor(Math.random() * 151) + 1);
-  });
-
-  untracked(() => pokemonResource.status());
+   document.querySelector("#random")?.addEventListener("click", () => {
+     pokemonId.set(Math.floor(Math.random() * 151) + 1);
+   });
 }
