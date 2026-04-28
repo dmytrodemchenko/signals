@@ -116,12 +116,12 @@ function brand<T extends (...args: never[]) => unknown>(target: T): T & SignalBr
 function linkDepSub(dep: ProducerNode, sub: SubscriberNode): void {
   const prevDep = sub.depsTail;
 
-  if (prevDep !== undefined && prevDep.dep === dep) {
+  if (prevDep?.dep === dep) {
     return;
   }
 
   const nextDep = prevDep !== undefined ? prevDep.nextDep : sub.deps;
-  if (nextDep !== undefined && nextDep.dep === dep) {
+  if (nextDep?.dep === dep) {
     nextDep.version = dep.version;
     sub.depsTail = nextDep;
     return;
@@ -249,10 +249,7 @@ function trackRead(node: ProducerNode): void {
 function notifySubscribers(node: ProducerNode): void {
   let link = node.subs;
   while (link !== undefined) {
-    notifySubscriber(
-      link.sub,
-      node.kind === NodeKind.Signal ? DIRTY : PENDING,
-    );
+    notifySubscriber(link.sub, node.kind === NodeKind.Signal ? DIRTY : PENDING);
     link = link.nextSub;
   }
 }
@@ -543,8 +540,8 @@ export function batch<T>(fn: () => T): T {
     if (isThenable(result)) {
       console.warn(
         '[signals] Warning: batch() was called with an async function. ' +
-        'Batching is strictly synchronous. Any signal mutations after an "await" ' +
-        'will not be batched.'
+          'Batching is strictly synchronous. Any signal mutations after an "await" ' +
+          'will not be batched.'
       );
     }
     return result;
