@@ -19,7 +19,7 @@ npm install @demchenko.di/signals
 - **Glitch-free Push/Pull engine:** Guarantees effects only run when values actually change.
 - **Node.js Ready:** Extremely lightweight, fast, and completely decoupled from the DOM.
 - Small core API: `signal`, `computed`, `effect`, `batch`, `untracked`
-- Extra primitives: `linkedSignal`, `resource`, `optimistic`
+- Extra primitives: `linkedSignal`, `resource`, `optimistic`, `debounceSignal`
 - Dual build: Unminified for development, minified for production (`@demchenko.di/signals/min`).
 - No runtime dependencies
 - Typed public API with generated `.d.ts` files
@@ -172,6 +172,28 @@ try {
 ```
 
 Use `optimistic()` for async writes that should feel immediate in the UI without mutating committed base state too early. It is especially useful for reactions, toggles, reordering, inline edits, and other mutation-heavy flows where rollback matters.
+
+### `debounceSignal`
+
+```ts
+import { signal, effect, debounceSignal } from "@demchenko.di/signals";
+
+const query = signal("");
+const debouncedQuery = debounceSignal(query, 300);
+
+effect(() => {
+  // Only fires once the user stops typing for 300ms
+  console.log("Search:", debouncedQuery());
+});
+
+query.set("h");
+query.set("he");
+query.set("hel");
+query.set("hello");
+// effect runs once with "hello" after 300ms of inactivity
+```
+
+`debounceSignal(source, ms)` returns a read-only signal that mirrors the source with a delay. The output only updates once the source has been stable (no new emissions) for `ms` milliseconds. This is useful for search inputs, resize/scroll handlers, and any scenario where you want to rate-limit reactive computations.
 
 `hasPending()` and `pendingCount()` are regular read signals, so they can be used directly inside `computed()` and `effect()` for UI state:
 
@@ -368,6 +390,7 @@ The package exports:
 - `linkedSignal`
 - `optimistic`
 - `resource`
+- `debounceSignal`
 
 ### `batch()` and Async Execution
 

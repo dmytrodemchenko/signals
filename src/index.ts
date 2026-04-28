@@ -34,3 +34,5 @@ export {
   type ResourceStatus,
   type ResourceLoaderParams,
 } from './resource.js';
+
+export { debounceSignal } from './debounce-signal.js';
