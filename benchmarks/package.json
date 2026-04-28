@@ -1,7 +1,6 @@
 {
   "name": "signals-benchmark",
   "version": "1.0.0",
-  "private": true,
   "description": "Performance benchmarks for the signals library against RxJS and competitors",
   "type": "module",
   "scripts": {
