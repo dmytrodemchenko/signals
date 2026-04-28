@@ -1,6 +1,6 @@
 {
   "name": "@demchenko.di/signals",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Zero-dependency reactive signals for TypeScript and JavaScript.",
   "license": "MIT",
   "type": "module",

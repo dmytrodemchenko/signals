@@ -6,6 +6,7 @@ import { signal, computed, effect, batch, untracked, isSignal } from './signals.
 import { linkedSignal } from './linked-signal.js';
 import { optimistic } from './optimistic.js';
 import { resource } from './resource.js';
+import { debounceSignal } from './debounce-signal.js';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -527,5 +528,69 @@ describe('resource', () => {
     expect(r.hasValue()).toBe(true);
     expect(r.isRefreshing()).toBe(false);
     r.destroy();
+  });
+});
+
+describe('debounceSignal', () => {
+  it('starts with the current source value', () => {
+    const source = signal(42);
+    const debounced = debounceSignal(source, 50);
+    expect(debounced()).toBe(42);
+  });
+
+  it('delays propagation by the specified time', async () => {
+    const source = signal('a');
+    const debounced = debounceSignal(source, 50);
+
+    source.set('b');
+    expect(debounced()).toBe('a'); // not yet updated
+
+    await wait(80);
+    expect(debounced()).toBe('b');
+  });
+
+  it('coalesces rapid updates', async () => {
+    const source = signal(0);
+    const debounced = debounceSignal(source, 50);
+    const seen: number[] = [];
+    const dispose = effect(() => {
+      seen.push(debounced());
+    });
+
+    source.set(1);
+    source.set(2);
+    source.set(3);
+
+    await wait(80);
+    // Should only see initial (0) and final debounced (3)
+    expect(seen).toEqual([0, 3]);
+    dispose();
+  });
+
+  it('reacts to multiple separate bursts', async () => {
+    const source = signal(0);
+    const debounced = debounceSignal(source, 30);
+
+    source.set(1);
+    await wait(60);
+    expect(debounced()).toBe(1);
+
+    source.set(2);
+    await wait(60);
+    expect(debounced()).toBe(2);
+  });
+
+  it('resets timer on each new emission', async () => {
+    const source = signal(0);
+    const debounced = debounceSignal(source, 50);
+
+    source.set(1);
+    await wait(30); // 30ms in, timer not yet fired
+    source.set(2); // resets timer
+    await wait(30); // 60ms total, but only 30ms since last change
+    expect(debounced()).toBe(0); // still waiting
+
+    await wait(40); // 100ms total, 70ms since last change — should have fired
+    expect(debounced()).toBe(2);
   });
 });

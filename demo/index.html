@@ -110,6 +110,63 @@ draft()</code></pre>
         </article>
 
         <article class="card">
+          <div class="card-row">
+            <div>
+              <h2>debounceSignal()</h2>
+              <p>Mirrors a source signal with a delay. Output only updates once the source has been stable for <code>ms</code> milliseconds. Useful for search inputs, resize handlers, and rate-limiting reactive computations.</p>
+            </div>
+            <pre class="code-sample"><code class="language-javascript">const query = signal('')
+const debounced = debounceSignal(query, 300)
+
+effect(() => {
+  // fires at most once every 300ms
+  console.log('search:', debounced())
+})
+
+query.set('h')
+query.set('he')
+query.set('hel')
+query.set('hell')
+query.set('hello')
+// effect fires once with 'hello'</code></pre>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>debounceSignal() · Live</h2>
+          <div class="stack">
+            <p>Type in the search box. Each keystroke updates the <strong>raw</strong> signal immediately, but the <strong>debounced</strong> signal only fires after you stop typing for the configured delay.</p>
+            <div class="debounce-layout">
+              <div class="debounce-input-group">
+                <label for="debounce-input" class="debounce-label">Search query</label>
+                <input id="debounce-input" class="debounce-search" type="text" placeholder="Start typing…" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="debounce-slider-group">
+                <label for="debounce-delay" class="debounce-label">Delay: <strong id="debounce-delay-label">300ms</strong></label>
+                <input id="debounce-delay" class="debounce-slider" type="range" min="50" max="1000" step="50" value="300" />
+              </div>
+            </div>
+            <div class="debounce-values">
+              <div class="debounce-value-card">
+                <span class="debounce-value-label">raw (instant)</span>
+                <span id="debounce-raw" class="debounce-value-text">(empty)</span>
+              </div>
+              <div class="debounce-value-card debounced">
+                <span class="debounce-value-label">debounced</span>
+                <span id="debounce-value" class="debounce-value-text">(empty)</span>
+              </div>
+            </div>
+            <div class="controls">
+              <button id="debounce-clear" type="button">clear & reset</button>
+            </div>
+            <div class="debounce-timeline-wrapper">
+              <span class="debounce-timeline-title">Event timeline</span>
+              <div id="debounce-timeline" class="debounce-timeline"></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
           <h2>optimistic() · Pending Local Intent</h2>
           <div class="stack">
             <p>Queue optimistic updates immediately, then commit or roll back when the request settles.</p>
@@ -191,6 +248,11 @@ draft()</code></pre>
                   <td><code>optimistic(source)</code></td>
                   <td>Projects local intent on top of settled state, then commits or rolls back.</td>
                   <td>You need optimistic UI without mutating base state early.</td>
+                </tr>
+                <tr>
+                  <td><code>debounceSignal(source, ms)</code></td>
+                  <td>Read-only signal that delays propagation until the source is stable for <code>ms</code>.</td>
+                  <td>You need to rate-limit reactive updates (search input, resize, scroll).</td>
                 </tr>
               </tbody>
             </table>
